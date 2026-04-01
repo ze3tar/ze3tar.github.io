@@ -3,10 +3,9 @@ layout: post
 title: "Cross-User RCE via Sublime Text TOCTOU"
 date: 2026-03-31
 categories: research
-tags: [sublime-text, toctou, rce, linux, privilege-escalation, cve]
+tags: [sublime-text, toctou, rce, linux, privilege-escalation, cve, disclosure]
+description: "How an unprivileged local user executes code as root using a race condition, a deterministic socket path, and a world-writable file — no memory corruption, no CVE exploit, no special privileges required."
 ---
-
-*How an unprivileged local user executes code as root using a race condition, a deterministic socket path, and a world-writable file — no memory corruption, no CVE exploit, no special privileges required.*
 
 ---
 

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }} — ze3ter</title>
+  <meta name="description" content="{{ page.excerpt | strip_html | truncate: 160 }}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0e0e0e;
+      --surface:   #141414;
+      --border:    #222;
+      --muted:     #555;
+      --subtle:    #888;
+      --text:      #d4d4d4;
+      --bright:    #f0f0f0;
+      --accent:    #c9a84c;
+      --mono:      'JetBrains Mono', 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+      --sans:      'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    html { font-size: 15px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── nav ── */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-home {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+    }
+
+    .nav-home:hover { color: var(--bright); }
+
+    .nav-handle {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── post header ── */
+    .post-header {
+      padding: 44px 0 36px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .post-meta {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .post-meta .tag {
+      color: var(--accent);
+      background: #1a1200;
+      border: 1px solid #3a2e00;
+      padding: 2px 8px;
+      border-radius: 2px;
+      text-transform: uppercase;
+    }
+
+    h1.post-title {
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: var(--bright);
+      letter-spacing: -0.02em;
+      line-height: 1.3;
+      margin-bottom: 16px;
+    }
+
+    .post-subtitle {
+      font-size: 0.95rem;
+      color: var(--subtle);
+      line-height: 1.65;
+      font-style: italic;
+    }
+
+    /* ── post body ── */
+    .post-body {
+      padding: 40px 0;
+    }
+
+    .post-body h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--bright);
+      letter-spacing: -0.01em;
+      margin: 40px 0 14px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    .post-body h2:first-child { margin-top: 0; }
+
+    .post-body h3 {
+      font-size: 0.97rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 28px 0 10px;
+    }
+
+    .post-body p {
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .post-body strong {
+      color: var(--bright);
+      font-weight: 600;
+    }
+
+    .post-body em {
+      color: var(--subtle);
+    }
+
+    .post-body ul,
+    .post-body ol {
+      margin: 0 0 16px 20px;
+    }
+
+    .post-body li {
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    /* ── code ── */
+    .post-body code {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 6px;
+      color: #c9a84c;
+    }
+
+    .post-body pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      margin: 6px 0 22px;
+    }
+
+    .post-body pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #c8c8c8;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    /* ── tables ── */
+    .post-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6px 0 22px;
+      font-size: 0.87rem;
+    }
+
+    .post-body th {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    .post-body td {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      color: var(--text);
+      vertical-align: top;
+    }
+
+    .post-body tr:last-child td { border-bottom: none; }
+
+    /* ── hr ── */
+    .post-body hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 36px 0;
+    }
+
+    /* ── blockquote ── */
+    .post-body blockquote {
+      border-left: 2px solid var(--accent);
+      padding-left: 16px;
+      margin: 0 0 16px;
+      color: var(--subtle);
+      font-style: italic;
+    }
+
+    /* ── footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 0;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--accent); }
+
+    @media (max-width: 480px) {
+      h1.post-title { font-size: 1.25rem; }
+      .post-body pre { padding: 14px 14px; }
+      footer { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <nav>
+      <a class="nav-home" href="/">← ze3tar.github.io</a>
+      <span class="nav-handle">@ze3ter</span>
+    </nav>
+
+    <header class="post-header">
+      <div class="post-meta">
+        <span>{{ page.date | date: "%Y-%m-%d" }}</span>
+        {% if page.tags contains 'cve' or page.tags contains 'disclosure' %}
+        <span class="tag">Disclosure</span>
+        {% endif %}
+      </div>
+      <h1 class="post-title">{{ page.title }}</h1>
+      {% if page.description %}
+      <p class="post-subtitle">{{ page.description }}</p>
+      {% endif %}
+    </header>
+
+    <article class="post-body">
+      {{ content }}
+    </article>
+
+    <footer>
+      <span>ze3ter &nbsp;·&nbsp; responsible disclosure</span>
+      <a href="https://x.com/ze3ter_" target="_blank" rel="noopener">x.com/ze3ter_</a>
+    </footer>
+
+  </div>
+</body>
+</html>
