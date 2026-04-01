@@ -1,83 +1,77 @@
 ---
 layout: post
-title: "Poking at Sublime Text internals: things I did not expect to find"
+title: "Trying to understand how Sublime Text works under the hood"
 date: 2026-04-01
 categories: research
 tags: [sublime-text, linux, internals, ipc, build-systems]
-description: "I started trying to understand how Sublime Text communicates with its own CLI. I ended up somewhere I did not plan to go. Notes from that journey."
+description: "I started by asking one simple question: how does the subl CLI talk to the running GUI? Six weeks later I had filled three notebooks. These are the things I found along the way that made me stop and read the code twice."
 ---
 
-I have been using Sublime Text for years without thinking much about how it actually works. I type, it renders, builds run. That is usually enough. But a few weeks ago I started wondering about one specific thing: when you run `subl somefile.py` in a terminal while Sublime is already open, how does that command reach the running GUI? There is no parent-child relationship. They are separate processes. Something is passing messages between them.
+I have been using Sublime Text for a long time. Long enough that I stopped thinking about it as software and started thinking of it as furniture. It is just there. I type, it renders.
 
-That question is what started this. What follows is everything I learned by following it, including a few places where the internals behaved in ways I did not expect.
+A while back I started wondering about one specific thing. When you run `subl file.py` in a terminal while Sublime is already open, the file opens in the running window. How? There is no parent-child relationship between the terminal and the GUI. They are completely separate processes. Something is connecting them.
+
+That question is what started this. I want to write down what I found because several of the behaviors I ran into were genuinely surprising to me, and I think they would be surprising to most people who use Sublime without thinking about its internals.
 
 ---
 
 ## The socket in /tmp
 
-The first thing I did was run `ls /tmp` while Sublime was open.
+The first thing I did was run `ls /tmp` with Sublime open.
 
 ```
 /tmp/Sublime Text.18bba2f919d04e82c4d74b410f5a4aca.sock
 ```
 
-A Unix domain socket. The hash suffix is derived from the Sublime binary itself, which means it is the same value on every machine running the same build. Not random, not session-based. Consistent.
+A Unix domain socket. That answers the basic question. The `subl` CLI connects to this socket and sends a message, and the GUI receives it and does whatever was asked.
 
-The socket has permissions `0755`. On Unix, connecting to a domain socket requires write permission on the socket file, so only the owner (whoever is running Sublime) can connect. But the path is predictable and the file is visible to everyone on the system.
+The hash in the filename is what caught my attention first. My assumption was that it would be random, regenerated each time Sublime starts, like a session token. It is not. I restarted Sublime several times and the hash never changed. I installed the same build on a second machine and got the same hash.
 
-When I ran `strace` on the `subl` binary, the whole communication model became clear:
+The hash is derived from the Sublime binary itself, not from any runtime state. Every machine running the same build version produces the exact same socket path without any coordination. This means if you know someone's Sublime version, you already know the socket path on their machine before you have touched it.
 
-```
-execve("/usr/bin/subl", ["subl", "somefile.py"], ...)
-execve("/opt/sublime_text/sublime_text", [..., "--fwdargv0", "/usr/bin/subl", "somefile.py"], ...)
-connect(3, {sa_family=AF_UNIX, sun_path="/tmp/Sublime Text.18bba2f919d04e82c4d74b410f5a4aca.sock"}, 110)
-```
+The socket permissions are `0755`:
 
-The `subl` wrapper is a single-line shell script:
-
-```sh
-#!/bin/sh
-exec /opt/sublime_text/sublime_text --fwdargv0 "$0" "$@"
+```bash
+stat "/tmp/Sublime Text.18bba2f919d04e82c4d74b410f5a4aca.sock"
+# Access: (0755/srwxr-xr-x)  Uid: (0/root)
 ```
 
-It just calls the main binary with an extra flag. The binary then looks up the deterministic socket path and connects. No configuration file, no environment variable, no discovery mechanism. It knows the path because it can compute the same hash from its own binary.
+On Linux, connecting to a Unix socket requires write permission on the socket file. `0755` means only the owner can connect. So the socket is visible to everyone but only the owner can use it while Sublime is running. That part makes sense.
 
 ---
 
-## The wire protocol
+## Reversing the wire protocol
 
-Once I knew there was a socket, I wanted to understand what was going across it. I used `strace -e trace=write` and captured the raw bytes when running `subl somefile.py`.
+I ran `strace` on the `subl` binary to see what it actually sends:
 
-The format is simple binary, little-endian:
-
-```
-[8 bytes]  payload length  (uint64)
-[4 bytes]  message type    (uint32, always 9)
-[4 bytes]  flags           (uint32)
-[8 bytes]  padding         (zeros)
-[4 bytes]  string count    (uint32, always 1)
-[4 bytes]  string length   (uint32)
-[N bytes]  string          (UTF-8)
-[16 bytes] trailing zeros
+```bash
+strace -e trace=write -xx -s 4096 subl --command 'exec {"shell_cmd":"id"}' 2>&1 | grep "write(3"
 ```
 
-The `flags` field is what determines what kind of request this is. `flags=0` means run a command. `flags=1` means open a file (the `--wait` mode). The string payload is either a command like `exec {"shell_cmd": "make"}` or a file path.
+The format is a simple binary framing, little-endian:
 
-The response from the server is four bytes: just an exit code.
+```
+[8 bytes]   payload length   (uint64)
+[4 bytes]   message type     (uint32, always 9)
+[4 bytes]   flags            (uint32)
+[8 bytes]   zeros
+[4 bytes]   string count     (uint32, always 1)
+[4 bytes]   string length    (uint32)
+[N bytes]   string payload   (UTF-8)
+[16 bytes]  trailing zeros
+```
 
-What stood out to me immediately is that there is no authentication in this protocol. No handshake, no token, no challenge. The binary connects and sends a command and the server runs it. The only protection is the filesystem permission on the socket file itself, which limits who can connect. We will come back to why that matters.
+The `flags` field determines what kind of request this is. `flags=0` means run a command. `flags=1` means open a file and wait (the `--wait` mode). The server's response is eight bytes: a length prefix and an exit code.
 
----
+There is no authentication in this protocol. No token, no challenge, no session ID. The socket permissions are the entire security model. If you can connect, you can send any command.
 
-## What commands the socket accepts
-
-Once I understood the framing I started experimenting with what commands the socket would execute. The `exec` command accepts a JSON argument with a `shell_cmd` key, and Sublime runs it through `/usr/bin/env bash -c`. I confirmed this by sending:
+I wrote a small script to send the `exec` command directly:
 
 ```python
 import socket, struct, glob
 
 sock_path = glob.glob("/tmp/Sublime Text.*.sock")[0]
-cmd = 'exec {"shell_cmd": "env > /tmp/sublime_env.txt"}'
+cmd = 'exec {"shell_cmd": "id > /tmp/from_socket.txt"}'
 cmd_b = cmd.encode()
 
 payload = (
@@ -93,46 +87,132 @@ s.sendall(struct.pack('<Q', len(payload)) + payload)
 s.close()
 ```
 
-This ran silently, no UI feedback whatsoever. The file `/tmp/sublime_env.txt` appeared with the full process environment, which included things I had not thought about. The Sublime process inherits the entire desktop session environment. On my machine that included:
+It worked. The file appeared with no UI activity, no prompt, nothing visible. The command ran inside Sublime's Python runtime as the user running Sublime.
+
+The interesting side effect of running commands inside Sublime's process is that the process environment is the full desktop session environment. When I dumped it:
+
+```bash
+subl --command 'exec {"shell_cmd": "env > /tmp/st_env.txt"}'
+```
+
+The output included things like:
 
 ```
 SSH_AUTH_SOCK=/root/.ssh/agent/s.RmUMDvbv44.agent.HumTNor1XO
 SSH_AGENT_PID=2266
 ```
 
-A running SSH agent, with the socket path exposed. Anything running as the same user with access to that socket can use it to authenticate as you to any server your SSH key has access to. That is not a flaw in Sublime specifically, it is just a consequence of how Unix process environments work, but it is worth being aware of. Any code that runs inside Sublime's `exec` command has access to your full session.
+A live SSH agent socket. Any code running through the `exec` command has access to it. This is not specific to Sublime, it is just how Unix session environments work, but it is easy to forget that an editor you have open all day is sitting on top of your SSH agent.
 
 ---
 
-## The --wait flag and git integration
+## What happens when Sublime restarts
 
-Sublime's own documentation recommends this setup:
+The socket disappears when Sublime closes and reappears when it starts again. While it is gone, the path in `/tmp` is unclaimed.
+
+I got curious about what `subl` does when it cannot connect. Running `strace` while no socket exists:
+
+```
+connect(3, {sa_family=AF_UNIX, sun_path="/tmp/Sublime Text.18bba2f919d04e82c4d74b410f5a4aca.sock"}, 110)
+= -1 ECONNREFUSED
+clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|...) = 32601
+connect(3, {sa_family=AF_UNIX, sun_path="/tmp/..."}, 110) = 0
+```
+
+It forks a child, which launches the full GUI, then polls the socket path until it appears and connects. The child becoming the new Sublime window, the parent becoming the CLI client.
+
+So the sequence during a restart is: socket disappears, a window opens where the path is gone, new socket appears. The `subl` binary connects to whatever file exists at that path when it polls. It does not check who owns the socket before calling `connect()`.
+
+I tested this. If you create your own Unix socket at that path before Sublime does, `subl` will connect to it. You receive the packets, you can read whatever file path was passed, and you can return whatever exit code you want. The CLI cannot tell the difference because it does not check.
+
+This has an interesting implication for the `subl --wait` pattern.
+
+---
+
+## subl --wait and the git editor use case
+
+Sublime's documentation recommends this for git integration:
 
 ```bash
 git config --global core.editor "subl --wait"
 ```
 
-With this in place, every git operation that needs a text editor (commits, rebases, tags) will open the file in Sublime and wait for it to be closed before continuing. The idea is that you edit, review, close the window, and git proceeds.
+With this set, every git operation that opens an editor (commit messages, rebases, tags) calls `subl --wait`, which blocks until the file is closed in Sublime, then returns exit=0. Scripts use this pattern as a sign-off mechanism:
 
-The `--wait` mode uses `flags=1` in the protocol, with the file path as the string payload. The CLI blocks until it receives the exit code response from the server.
+```bash
+subl --wait /tmp/deploy_notes.txt
+if [ $? -eq 0 ]; then
+    ./deploy.sh
+fi
+```
 
-I got curious about what happens during the startup sequence, specifically when Sublime is not yet running. Running `subl --wait somefile` when no socket exists triggers the full GUI to launch (Sublime forks itself), and then the CLI polls the socket path until it appears and connects. The GUI creates the socket on startup.
+The assumption is that exit=0 means a human opened the file, read it, and closed it. That assumption lives entirely in the socket. If you are sitting on the socket when `subl --wait` is called, you receive the file path in the packet, you can immediately return exit=0, and the calling script proceeds. The file never opened in any editor.
 
-This means there is a window between when the old socket is gone (Sublime closed) and when a new one appears (Sublime reopened) where the path is unclaimed. During that window any process could create a file at that path. The `subl` binary does no ownership check before connecting. It just calls `connect()` on whatever socket exists at the known path.
+The `--wait` mode uses `flags=1` in the protocol. The string payload is the file path. A fake server receives it like this:
 
-I tested this. If you create your own socket at that path before Sublime does, the `subl` CLI will connect to your socket instead of the real one. You receive the packets, you can read the file path out of them, and you can return whatever exit code you want. The CLI has no way to tell the difference.
+```python
+hdr = conn.recv(8)
+pkt_len = struct.unpack('<Q', hdr)[0]
+data = conn.recv(pkt_len)
 
-From a "how does this work" perspective this is interesting because it means the security model of `subl --wait` as a gate (the assumption that someone reviewed the file in Sublime before the exit code was returned) depends entirely on Sublime holding the socket. It is not enforced by the CLI itself.
+flags   = struct.unpack('<I', data[4:8])[0]   # 1 = file open (--wait)
+str_len = struct.unpack('<I', data[8:12])[0]
+path    = data[12:12+str_len].decode().rstrip('\x00')
+
+# You now have the file path and can return whatever exit code you want
+conn.sendall(struct.pack('<QI', 4, 0))   # exit=0
+```
+
+I confirmed this works. A process sitting on the socket can intercept `subl --wait` calls, read the file path from the packet (and the file contents if they are readable), and return any exit code immediately.
+
+What I find interesting about this behavior is that it is not a traditional exploit in the usual sense. There is no overflow, no corruption. The protocol just has no way to verify that a human actually interacted with the file. The entire trust model is: socket owner equals legitimate Sublime process.
+
+What makes it more interesting is the window during restarts. During that window, any local user can pre-create the socket. After that, any `subl --wait` call from any user on the machine connects to that socket instead.
 
 ---
 
-## How build systems actually run
+## The world-writable file scenario
 
-I spent a while in `exec.py`, which is the default package file that handles build system execution. A few things in there surprised me.
+While reading through the `--wait` behavior I started thinking about what happens when the file passed to `subl --wait` is world-writable. The typical case I kept seeing in scripts was something like:
 
-The first was how environment variables flow from project files into builds. The `exec` build runner calls `self.window.active_view().settings().get('build_env')` to pick up additional environment variables, and it merges them into the subprocess environment. The source of those variables is the view's settings, which cascade through several layers. One of those layers is the `settings` key in a `.sublime-project` file.
+```bash
+# CI pipeline generates a review file
+chmod 0666 /tmp/pipeline_review.sh
+# Privileged user reviews and runs it
+subl --wait /tmp/pipeline_review.sh
+if [ $? -eq 0 ]; then
+    bash /tmp/pipeline_review.sh
+fi
+```
 
-That means a project file can inject environment variables into every build that runs in that project, without those variables being visible in the `build_systems` section. If someone puts this in a `.sublime-project`:
+The `0666` permission exists because the pipeline agent and the privileged user running the review are different accounts. The file needs to be writable by both.
+
+If someone is sitting on the socket when this runs, they receive the file path, they can check whether the file is world-writable, and if it is, they can overwrite it before returning exit=0. The privileged process then executes whatever is now in the file.
+
+I tested this in a controlled setup with two separate UIDs. The flow confirmed: a process running as uid=1002 with no sudo, no special groups, and no other privileges can overwrite a root-owned file (if it has `0666` permissions) and then trigger root to execute it by returning exit=0 to a `subl --wait` call.
+
+```
+[mallory uid=1002] Intercepted /tmp/pipeline_review.sh
+[mallory] File is world-writable. Overwriting.
+[mallory] Returned exit=0.
+
+[root] subl returned: 0
+[root] Executing reviewed script...
+
+CROSS_USER_RCE, uid=0(root) gid=0(root) groups=0(root),...
+```
+
+The condition (world-writable file in `/tmp` that gets executed after a review step) is more common than it sounds. Docker-based CI pipelines often produce files this way because the build container runs as one UID and the host executor runs as another. The sticky bit on `/tmp` only prevents deletion, not modification of files you have write access to.
+
+---
+
+## Build systems and the project settings cascade
+
+I spent a lot of time in `exec.py`, which is the file in Sublime's default package that handles build system execution. A few things in there were not what I expected.
+
+The first was how environment variables reach the subprocess. The build runner reads `self.window.active_view().settings().get('build_env')` and merges those values into the subprocess environment. That setting comes from `view.settings()`, which is a cascaded view of several sources. One of those sources is the `settings` key in a `.sublime-project` file.
+
+This means a project file can inject environment variables into every build that runs in it by putting them in `settings` rather than in a `build_systems` entry:
 
 ```json
 {
@@ -145,26 +225,31 @@ That means a project file can inject environment variables into every build that
 }
 ```
 
-Every build that runs in that project, regardless of which build system it uses, will have a modified PATH. The user would not see this in the build system list because there is no entry there. It sits quietly in the `settings` key.
+There is no `build_systems` entry here. The build menu looks empty. But every build that runs in this project, regardless of which build system it uses, has a modified `PATH`. I verified this by opening the project and running a build and checking the environment the subprocess received. The injected value was there.
 
-The second thing I noticed is that the `path` key in a build system definition temporarily modifies `os.environ["PATH"]` for the entire `plugin_host` process, not just the subprocess being spawned. The code saves and restores it in a try/finally block, so it is cleaned up correctly. But `plugin_host` is multithreaded, and between the modification and the restoration, other threads in the same process see the modified value. Whether that matters in practice depends on what else is happening concurrently.
+The more visible version of this is the `env` key directly inside a `build_systems` entry:
 
-The third thing, and probably the most surprising, is this line:
-
-```python
-if working_dir != "":
-    os.chdir(working_dir)
+```json
+"build_systems": [{
+    "name": "Build Project",
+    "shell_cmd": "python3 build.py",
+    "env": {
+        "PATH": "/tmp/custom_bins:${PATH}"
+    }
+}]
 ```
 
-The working directory for a build is set by calling `os.chdir()` on the `plugin_host` process itself. There is no cleanup after the build finishes. The process's current working directory is permanently changed to wherever the last build ran. I do not know if this causes real problems in practice but it is not the behavior I would expect from a build runner.
+When `Ctrl+B` runs this, Sublime sets `PATH` to the value from the project file before spawning the build subprocess. Whatever binary resolves first in that PATH is what gets called. If the project is from a repository you cloned, the `PATH` in the project file was written by whoever committed it.
+
+I confirmed this by creating a fake `python3` wrapper, putting it at the start of the injected PATH, and triggering a build. The wrapper ran instead of the real Python. The build output looked normal because the wrapper called through to the real binary.
 
 ---
 
 ## Package auto-reload
 
-Sublime loads Python plugins from `~/.config/sublime-text/Packages/User/`. That much I knew. What I did not know is how fast it reacts to new files appearing there.
+Sublime loads Python plugins from `~/.config/sublime-text/Packages/User/`. I knew this. What I did not fully appreciate was how fast the reload happens.
 
-I created a minimal plugin file:
+I dropped a minimal Python file into that directory:
 
 ```python
 import sublime_plugin
@@ -174,50 +259,96 @@ class TestListener(sublime_plugin.EventListener):
         pass
 ```
 
-Then I dropped it into `Packages/User/` and watched the Sublime console. Within about eight seconds, without any restart or manual reload, the plugin was loaded and active. Sublime has inotify watches on that directory and reacts to filesystem changes in near real time.
+It was active within about eight seconds. No restart. No manual reload command. Sublime watches that directory with inotify and picks up new files immediately.
 
-This is by design and it makes plugin development much smoother. But it does mean that write access to `Packages/User/` is equivalent to code execution inside the Sublime process, with access to everything the Sublime process has access to.
+This is the right design for plugin development. But it means that write access to `Packages/User/` is functionally equivalent to having code running inside Sublime's Python process, with access to the full `sublime` API and the process environment including SSH sockets, credentials, and anything else inherited from the session.
+
+The `exec` socket command can write there directly:
+
+```
+exec {"shell_cmd": "cp /tmp/myplugin.py ~/.config/sublime-text/Packages/User/"}
+```
+
+After which the plugin auto-loads and runs on every file activation. This survives Sublime restarts because the directory is part of the user's persistent configuration.
 
 ---
 
-## The html_print behavior
+## The print_using_browser setting
 
-The last thing I looked at was `html_print.py`. I opened it because the filename was in the directory listing and I had not looked at it yet. The file is short, about thirty lines, and most of it is straightforward. But one line made me pause:
+This one I found by accident. I was going through the default package directory and `html_print.py` appeared in the listing. I opened it expecting nothing interesting. It is thirty lines. Most of it is straightforward. One line made me read it twice:
 
 ```python
 controller = webbrowser.get(using=view.settings().get('print_using_browser'))
 ```
 
-The `print_using_browser` setting is passed directly to Python's `webbrowser.get()`. The intent is clearly to let users choose which browser opens the print preview. Reasonable idea. But Python's `webbrowser` module has a path that is easy to miss.
+The `print_using_browser` setting is read from `view.settings()` and passed directly to Python's `webbrowser.get()`. The intent is clearly to let users choose which browser opens the print preview. That makes sense.
 
-If the string passed to `get(using=...)` contains `%s`, the module does not look it up as a browser name. Instead it treats the whole string as a command template, splits it with `shlex.split()`, and wraps it in a `GenericBrowser` object that calls `subprocess.Popen` when you open a URL. The `%s` gets replaced with the URL.
+The part that made me pause is what `webbrowser.get()` actually does with its argument. If the string contains `%s`, the module treats it as a command template rather than a browser name:
 
-So the setting `"print_using_browser": "xdg-open %s"` opens the file with `xdg-open`, as intended. But `"print_using_browser": "bash -c \"something\" %s"` runs `bash`. There is nothing in `html_print.py` that checks whether the setting contains a command template or validates it in any way.
+```python
+def get(using=None):
+    ...
+    for browser in alternatives:
+        if '%s' in browser:
+            browser = shlex.split(browser)
+            if browser[-1] == '&':
+                return BackgroundBrowser(browser[:-1])
+            else:
+                return GenericBrowser(browser)
+```
 
-And since `print_using_browser` is a view setting, and view settings are populated from project files through the `settings` key, a `.sublime-project` file can set it. The chain is:
+`GenericBrowser` runs the command via `subprocess.Popen`, substituting the URL for `%s`. So `"xdg-open %s"` opens the URL with `xdg-open`, as intended. But `"bash -c \"something\" %s"` runs bash.
 
-1. Project file sets `print_using_browser` in `settings`
-2. User opens the project in Sublime
-3. User uses File > Print
-4. `html_print.py` reads the setting and passes it to `webbrowser.get()`
-5. `webbrowser.get()` sees `%s`, treats it as a command, runs it
+Since `print_using_browser` is a view setting and view settings are populated from the project `settings` key, a `.sublime-project` file can set it:
 
-I verified this works by creating a test project with the setting pointing at a harmless command and confirming the output. It behaves exactly as described.
+```json
+{
+    "folders": [{"path": "."}],
+    "settings": {
+        "print_using_browser": "bash -c \"id > /tmp/print_test.txt\" %s"
+    }
+}
+```
 
-The interesting question this raises is: what is the intended trust boundary for project settings? The `settings` key in a `.sublime-project` can affect a lot of things beyond just editor appearance. There is currently no distinction between settings that affect UI and settings that affect process execution. Sublime applies them all the same way.
+I opened this project, used `File > Print`, and the file appeared. The command ran as the Sublime process owner with no prompts.
 
-VS Code addressed this with workspace trust, a model where projects from outside your own directories require explicit approval before their settings take effect. Sublime has no equivalent mechanism. Whether that matters to you depends on whether you open project files from sources you do not fully control.
+There is no `is_visible()` or `is_enabled()` guard on `html_print`, so the Print command is available for any open file. And because `print_using_browser` sits in the project `settings` key rather than a `build_systems` entry, there is no obvious signal that the project file is doing anything process-related.
 
 ---
 
-## What I took away from this
+## What ties all of this together
 
-The IPC architecture is clean and simple. One socket, one binary protocol, no dependencies. Easy to understand.
+The common thread across everything I looked at is that Sublime's project file format has more power over the running process than it appears to.
 
-The place where my mental model shifted the most was around project files. I had thought of `.sublime-project` as a relatively inert configuration file that stores folder paths and maybe some syntax associations. After reading through how settings cascade and what settings are actually consumed by running code, I think of them differently now. A project file can influence build environment variables, the browser used for print preview, and potentially other things I have not traced yet.
+A `.sublime-project` can inject environment variables into every build. It can set `print_using_browser` to a shell command. The `settings` key feeds into `view.settings()` which is consumed by multiple parts of the codebase. None of this is documented prominently. It looks like editor configuration.
 
-This is not necessarily wrong, it is just more powerful than it looks. Worth knowing if you are the kind of person who opens project files from repositories without reading them first, which is most people, most of the time.
+The socket is a separate surface but it connects to the same picture. The protocol has no authentication, the path is deterministic, and there is a window during restarts where the path is available to anyone on the system. For `subl --wait` to work as a reliable sign-off mechanism, the socket needs to be trusted, and that trust rests entirely on the filesystem permissions at a predictable path.
+
+The package auto-reload mechanism is by design and makes plugin development fast. It also means the plugin directory is a persistent execution environment that loads without any user action after a file is dropped there.
+
+None of these things are broken in isolation in an obvious way. They are design decisions that interact with each other and with the environment around them in ways that are worth understanding if you rely on Sublime as part of any workflow that has a security requirement.
 
 ---
 
-*Tested on: Linux 6.18.9+kali-amd64, Sublime Text Build 4200*
+## A note on `subl --wait` specifically
+
+If you use `subl --wait` in any script where the exit code has a security meaning (gate before deploy, git commit review, sudoedit-style patterns), be aware that the guarantee it provides is softer than it looks. The exit code comes from whoever is holding the socket, not from a verified human interaction.
+
+A safer pattern for file review gates is to checksum the file before opening it and verify the checksum after the editor exits:
+
+```bash
+before=$(sha256sum /tmp/review_file.txt)
+subl --wait /tmp/review_file.txt
+after=$(sha256sum /tmp/review_file.txt)
+
+if [ "$before" = "$after" ]; then
+    echo "File unchanged. Was it actually reviewed?"
+    exit 1
+fi
+```
+
+This does not require trusting the exit code.
+
+---
+
+*Environment: Sublime Text Build 4200, Linux 6.18.9+kali-amd64*
