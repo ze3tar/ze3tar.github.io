@@ -1,5 +1,3 @@
-# How I Found an OOB Heap Write in V8's Atomics Implementation
-
 ## TL;DR
 
 I found a vulnerability in V8 (the JavaScript engine powering Chrome and Node.js) where `Atomics.store()` on a `Float16Array` performs an 8-byte BigInt64 write instead of the expected 2-byte Float16 write. This enables out-of-bounds heap writes up to 3x the buffer size, with full control over the written value. The bug affects Node.js 22 LTS.
