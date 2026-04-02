@@ -49,13 +49,14 @@
 
     /* ── wide wrap: article + toc sidebar ── */
     .article-wrap {
-      max-width: 1060px;
+      width: 100%;
       margin: 0 auto;
       padding: 0 24px;
       display: grid;
-      grid-template-columns: 1fr 200px;
-      gap: 64px;
+      grid-template-columns: minmax(0, 740px) max-content;
+      gap: 52px;
       align-items: start;
+      justify-content: center;
     }
 
     /* ── nav ── */
@@ -163,6 +164,7 @@
       line-height: 1.4;
       border-left: 2px solid transparent;
       margin-left: -1px;
+      white-space: nowrap;
       transition: color 0.15s, border-color 0.15s;
     }
 
@@ -329,11 +331,10 @@
     footer a:hover { color: var(--pink); }
 
     /* ── responsive: hide sidebar on narrow screens ── */
-    @media (max-width: 960px) {
+    @media (max-width: 768px) {
       .article-wrap {
         grid-template-columns: 1fr;
         gap: 0;
-        max-width: 740px;
       }
       .toc { display: none; }
     }
