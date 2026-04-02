@@ -14,7 +14,7 @@ My first test was simple: what happens when you use Float16Array with APIs desig
 
 ```javascript
 Atomics.load(new Float16Array(new SharedArrayBuffer(2)), 0);
-// → Exit code 133 (SIGILL — Illegal Instruction)
+// → Exit code 133 (SIGILL  Illegal Instruction)
 ```
 
 The process crashes with `SIGILL`. Root cause: the CSA (CodeStubAssembler) `Switch` in `builtins-sharedarraybuffer-gen.cc` handles 8 integer element kinds, but Float16 isn't one of them. The default case calls `Unreachable()` which emits a `ud2` instruction.
@@ -32,7 +32,7 @@ Atomics.load(f16, 0)       → SIGILL crash
 Atomics.exchange(f16, 0, 1) → SIGILL crash
 ```
 
-Wait — `Atomics.store` with a BigInt value *succeeds*? That's not supposed to happen. Float16Array is a float type, not a BigInt type. Let me look at what actually gets written:
+Wait  `Atomics.store` with a BigInt value *succeeds*? That's not supposed to happen. Float16Array is a float type, not a BigInt type. Let me look at what actually gets written:
 
 ```javascript
 const sab = new SharedArrayBuffer(64);
@@ -46,11 +46,11 @@ console.log(Array.from(u8.slice(0, 8)).map(x => x.toString(16)));
 // Output: ['48', '47', '46', '45', '44', '43', '42', '41']
 ```
 
-**8 bytes written.** A Float16 element is 2 bytes. But this wrote 8 bytes — a full BigInt64 store. Elements `f16[1]`, `f16[2]`, and `f16[3]` are all corrupted with attacker-controlled data.
+**8 bytes written.** A Float16 element is 2 bytes. But this wrote 8 bytes  a full BigInt64 store. Elements `f16[1]`, `f16[2]`, and `f16[3]` are all corrupted with attacker-controlled data.
 
 ## The Root Cause: Enum Ordering Bug
 
-In V8 12.4, the `ElementsKind` enum places `FLOAT16_ELEMENTS` at position 6 — between `INT32_ELEMENTS` (5) and `BIGUINT64_ELEMENTS` (7):
+In V8 12.4, the `ElementsKind` enum places `FLOAT16_ELEMENTS` at position 6  between `INT32_ELEMENTS` (5) and `BIGUINT64_ELEMENTS` (7):
 
 ```
 UINT8(0), INT8(1), UINT16(2), INT16(3), UINT32(4), INT32(5),
@@ -83,8 +83,8 @@ GotoIf(Int32GreaterThan(elements_kind, Int32Constant(INT32_ELEMENTS)), &u64);
 `FLOAT16 = 6 > INT32 = 5` → TRUE → takes the BigInt64 store path!
 
 The BigInt64 path then:
-1. Calls `ToBigInt(value)` — succeeds for BigInt input
-2. Calls `AtomicStore64(backing_store, WordShl(index_word, 3), ...)` — stores 8 bytes at offset `index * 8`
+1. Calls `ToBigInt(value)`  succeeds for BigInt input
+2. Calls `AtomicStore64(backing_store, WordShl(index_word, 3), ...)`  stores 8 bytes at offset `index * 8`
 
 ## Escalation: OOB Heap Write
 
@@ -111,7 +111,7 @@ for (let i = 2; i <= 7; i++) {
 // → Exit code 134 (SIGABRT)
 ```
 
-The process crashes with a glibc heap corruption error — we've overwritten malloc chunk metadata.
+The process crashes with a glibc heap corruption error  we've overwritten malloc chunk metadata.
 
 ## Proving Controlled Corruption
 
@@ -187,7 +187,7 @@ Now `FLOAT16 = 11 > BIGINT64 = 7`, so `ValidateIntegerTypedArray` correctly reje
 
 3. **Test the boundaries.** The Atomics API is designed for integer typed arrays. Testing it with float typed arrays revealed that the validation wasn't airtight for the newest float type.
 
-4. **Follow the crash.** The initial SIGILL crash in `Atomics.load` was just a DoS. But investigating *why* it crashed led to understanding *why* `Atomics.store` didn't crash — and that led to the OOB write.
+4. **Follow the crash.** The initial SIGILL crash in `Atomics.load` was just a DoS. But investigating *why* it crashed led to understanding *why* `Atomics.store` didn't crash  and that led to the OOB write.
 
 ---
 
