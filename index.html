@@ -20,6 +20,7 @@ layout: none
       --text:      #d4d4d4;
       --bright:    #f0f0f0;
       --accent:    #c9a84c;
+      --pink:      #f472b6;
       --mono:      'JetBrains Mono', 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
       --sans:      'Inter', system-ui, -apple-system, sans-serif;
     }
@@ -46,21 +47,21 @@ layout: none
     /* ── header ── */
     header {
       border-bottom: 1px solid var(--border);
-      padding: 48px 0 40px;
+      padding: 52px 0 44px;
     }
 
     .handle {
       font-family: var(--mono);
-      font-size: 0.75rem;
-      letter-spacing: 0.12em;
-      color: var(--accent);
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      color: var(--pink);
       text-transform: uppercase;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
     h1 {
-      font-size: 1.75rem;
-      font-weight: 600;
+      font-size: 1.8rem;
+      font-weight: 700;
       color: var(--bright);
       letter-spacing: -0.02em;
       margin-bottom: 14px;
@@ -70,11 +71,11 @@ layout: none
       font-size: 0.95rem;
       color: var(--subtle);
       max-width: 520px;
-      line-height: 1.65;
+      line-height: 1.7;
     }
 
     .socials {
-      margin-top: 22px;
+      margin-top: 24px;
       display: flex;
       gap: 20px;
       align-items: center;
@@ -111,8 +112,8 @@ layout: none
     .section-label {
       font-family: var(--mono);
       font-size: 0.68rem;
-      letter-spacing: 0.14em;
-      color: var(--muted);
+      letter-spacing: 0.16em;
+      color: var(--pink);
       text-transform: uppercase;
       margin-bottom: 22px;
     }
@@ -126,31 +127,54 @@ layout: none
 
     .about p:last-child { margin-bottom: 0; }
 
-    /* ── focus grid ── */
+    /* ── focus areas ── */
     .focus-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
     }
 
     .focus-item {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 14px 16px;
+      padding: 14px 20px 14px 0;
+      border-bottom: 1px solid var(--border);
+      cursor: default;
     }
 
-    .focus-item .fi-title {
+    .focus-item:nth-child(even) {
+      padding-left: 20px;
+      padding-right: 0;
+      border-left: 1px solid var(--border);
+    }
+
+    .focus-item:nth-last-child(-n+2) {
+      border-bottom: none;
+    }
+
+    .fi-title {
       font-size: 0.83rem;
       font-weight: 600;
       color: var(--bright);
-      margin-bottom: 6px;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .focus-item .fi-desc {
+    .fi-title::before {
+      content: '';
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      background: var(--pink);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .fi-desc {
       font-size: 0.78rem;
       color: var(--subtle);
       line-height: 1.55;
+      padding-left: 13px;
     }
 
     /* ── skills ── */
@@ -168,13 +192,15 @@ layout: none
       border: 1px solid var(--border);
       border-radius: 3px;
       padding: 4px 10px;
+      cursor: default;
+      user-select: none;
     }
 
     /* ── research ── */
     .research-list { list-style: none; }
 
     .research-list li {
-      padding: 16px 0;
+      padding: 18px 0;
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
@@ -191,10 +217,11 @@ layout: none
       font-size: 0.92rem;
       font-weight: 500;
       color: var(--bright);
-      margin-bottom: 4px;
+      margin-bottom: 5px;
     }
 
-    .r-title a:hover { color: var(--accent); }
+    .r-title a { transition: color 0.15s; }
+    .r-title a:hover { color: var(--pink); }
 
     .r-meta {
       font-family: var(--mono);
@@ -204,7 +231,7 @@ layout: none
 
     .r-tag {
       font-family: var(--mono);
-      font-size: 0.68rem;
+      font-size: 0.67rem;
       padding: 3px 8px;
       border-radius: 2px;
       white-space: nowrap;
@@ -212,9 +239,9 @@ layout: none
     }
 
     .tag-disclosure {
-      background: #1a1200;
-      color: var(--accent);
-      border: 1px solid #3a2e00;
+      background: #1f0a14;
+      color: var(--pink);
+      border: 1px solid #3d1228;
     }
 
     /* ── footer ── */
@@ -227,9 +254,12 @@ layout: none
     }
 
     /* ── responsive ── */
-    @media (max-width: 480px) {
+    @media (max-width: 520px) {
       h1 { font-size: 1.4rem; }
       .focus-grid { grid-template-columns: 1fr; }
+      .focus-item:nth-child(even) { border-left: none; padding-left: 0; }
+      .focus-item:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
+      .focus-item:last-child { border-bottom: none; }
       .research-list li { flex-direction: column; gap: 6px; }
     }
   </style>
@@ -247,7 +277,6 @@ layout: none
       </p>
       <div class="socials">
         <a class="social-link" href="https://x.com/ze3ter_" target="_blank" rel="noopener">
-          <!-- X / Twitter icon -->
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.254 5.622 5.91-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
           </svg>
@@ -301,6 +330,11 @@ layout: none
         <span class="skill">Bash</span>
         <span class="skill">Networks</span>
         <span class="skill">Linux internals</span>
+        <span class="skill">pwntools</span>
+        <span class="skill">strace / ltrace</span>
+        <span class="skill">gdb / pwndbg</span>
+        <span class="skill">Burp Suite</span>
+        <span class="skill">IDA / Ghidra</span>
       </div>
     </section>
 
