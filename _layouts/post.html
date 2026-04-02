@@ -47,16 +47,11 @@
       padding: 0 24px;
     }
 
-    /* ── wide wrap: article + toc sidebar ── */
+    /* ── article wrap: same as .wrap, no grid needed ── */
     .article-wrap {
-      width: 100%;
+      max-width: 740px;
       margin: 0 auto;
       padding: 0 24px;
-      display: grid;
-      grid-template-columns: minmax(0, 740px) max-content;
-      gap: 52px;
-      align-items: start;
-      justify-content: center;
     }
 
     /* ── nav ── */
@@ -131,10 +126,16 @@
     }
 
     /* ── TOC sidebar ── */
+    /* Fixed to viewport, positioned just right of the centered content column.
+       50vw = viewport midpoint. 370px = half of 740px article width. 32px gap. */
     .toc {
-      position: sticky;
-      top: 40px;
-      padding-top: 44px;
+      position: fixed;
+      top: 56px;
+      left: calc(50vw + 402px);
+      width: max-content;
+      max-width: 176px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
     }
 
     .toc-label {
@@ -330,12 +331,9 @@
     footer a { color: var(--muted); transition: color 0.15s; }
     footer a:hover { color: var(--pink); }
 
-    /* ── responsive: hide sidebar on narrow screens ── */
-    @media (max-width: 768px) {
-      .article-wrap {
-        grid-template-columns: 1fr;
-        gap: 0;
-      }
+    /* ── hide TOC when there's no room beside the article ── */
+    /* needs: 50vw + 402px + ~170px < vw  →  vw > ~1144px */
+    @media (max-width: 1140px) {
       .toc { display: none; }
     }
 
