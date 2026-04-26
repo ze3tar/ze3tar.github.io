@@ -574,7 +574,7 @@ a.bare:hover { color: var(--accent); }
   font-size: 10px;
   color: var(--ink-faint);
   letter-spacing: 0.1em;
-  z-index: 20;
+  z-index: 9;
   background: var(--bg);
   padding: 6px 10px;
   border: 1px solid var(--rule);
@@ -1088,6 +1088,27 @@ a.bare:hover { color: var(--accent); }
 }
 .tweaks-row button.active { color: var(--accent); border-color: var(--accent); }
 
+/* ── markdown post layout ───────────────────────────────────── */
+.post-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 48px;
+  align-items: start;
+  margin-top: 32px;
+}
+.post-sidebar {
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  scrollbar-width: none;
+}
+.post-sidebar::-webkit-scrollbar { display: none; }
+
 /* responsive */
 @media (max-width: 900px) {
   .section, .hero { grid-template-columns: 1fr; gap: 16px; }
@@ -1139,6 +1160,7 @@ a.bare:hover { color: var(--accent); }
   .nav { gap: 12px; font-size: 11px; overflow-x: auto; scrollbar-width: none; }
   .nav::-webkit-scrollbar { display: none; }
   .topbar-inner { grid-template-columns: auto 1fr; }
+  .post-progress-label { display: none; }
   .footer { padding: 20px 16px; grid-template-columns: 1fr; gap: 24px; }
   .hero { padding: 24px 0 32px; }
   .hero-title { font-size: 26px; letter-spacing: -0.02em; }
@@ -1190,27 +1212,6 @@ a.bare:hover { color: var(--accent); }
   /* filter bar */
   .filterbar { flex-wrap: wrap; gap: 6px; }
 }
-
-/* ── markdown post layout ───────────────────────────────────── */
-.post-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 48px;
-  align-items: start;
-  margin-top: 32px;
-}
-.post-sidebar {
-  position: sticky;
-  top: 80px;
-  max-height: calc(100vh - 96px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  scrollbar-width: none;
-}
-.post-sidebar::-webkit-scrollbar { display: none; }
 
 /* ── markdown rendered body ─────────────────────────────────── */
 .post-md-body { color: var(--ink); line-height: 1.75; font-size: 15px; }
