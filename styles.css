@@ -1125,8 +1125,8 @@ a.bare:hover { color: var(--accent); }
   .stats .cell:nth-child(2) { border-right: none; }
   .bio-grid { grid-template-columns: 1fr; }
   .footer { grid-template-columns: 1fr; }
-  .post-layout { grid-template-columns: 1fr; }
-  .post-sidebar { display: none; }
+  .post-layout { grid-template-columns: 1fr !important; }
+  .post-sidebar { display: none !important; }
 }
 
 /* ── tablet ──────────────────────────────────────────────────── */
