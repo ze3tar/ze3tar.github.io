@@ -128,11 +128,11 @@ function AboutPage() {
           <SectionLabel num="04">contact</SectionLabel>
           <div style={{maxWidth:'64ch'}}>
             <p style={{color:'var(--ink)', fontSize: 14.5, lineHeight: 1.7, marginBottom: 24}}>
-              Best place to reach me is X - <a href="#">@ze3ter</a>. I read everything, I reply when I can.
+              Best place to reach me is X - <a href="https://x.com/ze3ter_">@ze3ter_</a>. I read everything, I reply when I can.
             </p>
             <div className="chips">
-              <Chip>x / @ze3ter</Chip>
-              <Chip>github / ze3tar</Chip>
+              <a href="https://x.com/ze3ter_" className="bare"><Chip>x / @ze3ter_</Chip></a>
+              <a href="https://github.com/ze3tar/" className="bare"><Chip>github / ze3tar</Chip></a>
             </div>
           </div>
         </section>

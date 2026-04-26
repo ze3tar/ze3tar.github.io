@@ -49,8 +49,8 @@ function Footer() {
       <div>
         <h4>elsewhere</h4>
         <ul>
-          <li><a href="#">x / @ze3ter</a></li>
-          <li><a href="#">github / ze3tar</a></li>
+          <li><a href="https://x.com/ze3ter_">x / @ze3ter_</a></li>
+          <li><a href="https://github.com/ze3tar/">github / ze3tar</a></li>
         </ul>
       </div>
       <div>

@@ -56,9 +56,9 @@ function Hero() {
           Trying to learn a new thing everyday.
         </p>
         <div className="hero-meta">
-          <a href="#">x / @ze3ter</a>
+          <a href="https://x.com/ze3ter_">x / @ze3ter_</a>
           <span className="sep">·</span>
-          <a href="#">github / ze3tar</a>
+          <a href="https://github.com/ze3tar/">github / ze3tar</a>
           <span className="sep">·</span>
           <a href="about.html">about →</a>
         </div>

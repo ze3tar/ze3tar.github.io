@@ -89,7 +89,7 @@ function PostSide({ meta }) {
       <div className="block">
         <h4>contact</h4>
         <div style={{ color: 'var(--ink-dim)', fontSize: 12, lineHeight: 1.7 }}>
-          <a href="#" className="bare" style={{ color: 'var(--accent)' }}>x / @ze3ter</a>
+          <a href="https://x.com/ze3ter_" className="bare" style={{ color: 'var(--accent)' }}>x / @ze3ter_</a>
         </div>
       </div>
     </aside>
