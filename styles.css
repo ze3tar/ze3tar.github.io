@@ -1105,7 +1105,7 @@ a.bare:hover { color: var(--accent); }
   .bio-grid { grid-template-columns: 1fr; }
   .footer { grid-template-columns: 1fr; }
   .post-layout { grid-template-columns: 1fr; }
-  .post-sidebar { position: static; max-height: none; overflow: visible; }
+  .post-sidebar { display: none; }
 }
 
 /* ── tablet ──────────────────────────────────────────────────── */
@@ -1172,6 +1172,8 @@ a.bare:hover { color: var(--accent); }
   .focus-item-head h3 { font-size: 13px; }
 
   /* post */
+  .post-sidebar { display: none; }
+  .post-layout { display: block; }
   .post-md-body { font-size: 13.5px; }
   .post-md-body h2 { font-size: 14px; margin: 28px 0 12px; }
   .post-md-body h3 { font-size: 11px; }
