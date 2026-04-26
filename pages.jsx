@@ -35,7 +35,7 @@ function ArchivePage() {
           <div>
             <h1 className="hero-title">Notes &amp; learning log</h1>
             <p className="hero-sub">
-              Everything I've written down so far — newest first. Entries marked
+              Everything I've written down so far - newest first. Entries marked
               <span className="signal"> learning :)</span> are in progress; expect them to change as I dig further.
             </p>
           </div>
@@ -128,7 +128,7 @@ function AboutPage() {
           <SectionLabel num="04">contact</SectionLabel>
           <div style={{maxWidth:'64ch'}}>
             <p style={{color:'var(--ink)', fontSize: 14.5, lineHeight: 1.7, marginBottom: 24}}>
-              Best place to reach me is X — <a href="#">@ze3ter</a>. I read everything, I reply when I can.
+              Best place to reach me is X - <a href="#">@ze3ter</a>. I read everything, I reply when I can.
             </p>
             <div className="chips">
               <Chip>x / @ze3ter</Chip>

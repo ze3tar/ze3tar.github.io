@@ -1,9 +1,9 @@
-/* Home page — sections composed into the index */
+/* Home page - sections composed into the index */
 
 const POSTS = [
   {
     id: '03',
-    title: 'QuickJS — Heap-UAF in Atomics via ResizableArrayBuffer',
+    title: 'QuickJS - Heap-UAF in Atomics via ResizableArrayBuffer',
     sub: 'All 8 Atomics ops share a stale-pointer bug. valueOf() resizes the RAB, realloc moves it, write lands on freed memory.',
     target: 'bellard/quickjs master d7ae12a',
     date: '2026-04-25',
@@ -20,18 +20,18 @@ const POSTS = [
     date: '2026-04-01',
     state: 'learning',
     stateLabel: 'learning :)',
-    href: 'post.html',
+    href: 'post-sublime.html',
     tags: ['reversing', 'ida'],
   },
   {
     id: '01',
-    title: 'V8 12.4 — OOB Heap Write via Atomics.store on Float16Array',
-    sub: 'A bounds check that runs before coercion — notes while the hypothesis is still forming.',
+    title: 'V8 12.4 - OOB Heap Write via Atomics.store on Float16Array',
+    sub: 'A bounds check that runs before coercion - notes while the hypothesis is still forming.',
     target: 'V8 12.4.254.21 · Node.js 22 LTS',
     date: '2026-02-09',
     state: 'learning',
     stateLabel: 'learning :)',
-    href: 'post.html',
+    href: 'post-v8.html',
     tags: ['v8', 'browser'],
   },
 ];
@@ -68,7 +68,7 @@ function Hero() {
 }
 
 function Digging() {
-  // uptime counter from an arbitrary recent instant — purely visual "I'm currently on this"
+  // uptime counter from an arbitrary recent instant - purely visual "I'm currently on this"
   const start = React.useMemo(() => new Date('2026-04-25T12:00:00Z').getTime(), []);
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
@@ -102,9 +102,9 @@ function Digging() {
       <div className="digging-row">
         <span className="k">next</span>
         <span className="v">
-          Waiting on CVE assignment. Then: <span className="accent">Linux kernel io_uring</span> — same TOCTOU class, different surface.
+          Waiting on CVE assignment. Then: <span className="accent">Linux kernel io_uring</span> - same TOCTOU class, different surface.
         </span>
-        <span className="t">—</span>
+        <span className="t">-</span>
       </div>
       <div className="digging-progress"><span style={{width: '80%'}}/></div>
     </div>

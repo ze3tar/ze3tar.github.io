@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>QuickJS — Heap-UAF in Atomics via ResizableArrayBuffer · ze3ter</title>
+<title>V8 12.4 — OOB Heap Write via Atomics.store on Float16Array · ze3ter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,400&display=swap" rel="stylesheet"/>
@@ -19,19 +19,17 @@ document.documentElement.setAttribute('data-theme', TWEAK_DEFAULTS.theme);
 document.documentElement.setAttribute('data-density', TWEAK_DEFAULTS.density);
 
 window.POST_META = {
-  id: '03',
-  title: 'QuickJS — Heap-UAF in Atomics via ResizableArrayBuffer',
-  sub: 'All 8 Atomics ops share a stale-pointer bug. valueOf() resizes the RAB, realloc moves it, write lands on freed memory.',
-  target: 'bellard/quickjs master d7ae12a',
-  date: '2026-04-25',
-  state: 'disclosed',
-  stateLabel: 'disclosed',
-  mdFile: 'posts/quickjs-atomics-uaf.md',
-  tags: ['quickjs', 'use-after-free', 'cve'],
-  cwe: 'CWE-416: Use After Free',
-  cvss: '7.8 High',
-  prev: { href: 'post-sublime.html', title: 'Sublime Text internals' },
-  next: null,
+  id: '01',
+  title: 'V8 12.4 — OOB Heap Write via Atomics.store on Float16Array',
+  sub: 'A bounds check that runs before coercion — notes while the hypothesis is still forming.',
+  target: 'V8 12.4.254.21 · Node.js 22 LTS',
+  date: '2026-02-09',
+  state: 'learning',
+  stateLabel: 'learning :)',
+  mdFile: 'posts/v8-float16array.md',
+  tags: ['v8', 'browser', 'use-after-free'],
+  prev: null,
+  next: { href: 'post-sublime.html', title: 'Sublime Text internals' },
 };
 </script>
 </head>
