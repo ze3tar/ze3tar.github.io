@@ -649,9 +649,10 @@ a.bare:hover { color: var(--accent); }
   align-items: start;
 }
 .post-toc {
-  position: sticky;
-  top: 80px;
   font-size: 12px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--rule);
 }
 .post-toc h4 {
   font-size: 10px;
@@ -689,8 +690,6 @@ a.bare:hover { color: var(--accent); }
 .post-toc li.active::before { color: var(--accent); }
 
 .post-side {
-  position: sticky;
-  top: 80px;
   font-size: 11px;
   color: var(--ink-faint);
 }
@@ -1120,10 +1119,15 @@ a.bare:hover { color: var(--accent); }
 .post-sidebar {
   position: sticky;
   top: 80px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 0;
+  scrollbar-width: none;
 }
+.post-sidebar::-webkit-scrollbar { display: none; }
 
 /* ── markdown rendered body ─────────────────────────────────── */
 .post-md-body { color: var(--ink); line-height: 1.75; font-size: 15px; }
