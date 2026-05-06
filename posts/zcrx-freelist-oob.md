@@ -1,5 +1,3 @@
-# You gave me a u32. I gave you root. (io_uring ZCRX freelist LPE)
-
 ## TL;DR
 
 Linux 6.15 shipped a new zero-copy receive subsystem for io_uring called ZCRX.
@@ -10,7 +8,7 @@ niovs to the same freelist, and when they overlap, `free_count` exceeds the
 allocated array length. The result is a 4-byte out-of-bounds write into
 adjacent slab memory.
 
-The OOB value is a niov index — a small integer between 0 and N-1. That sounds
+The OOB value is a niov index, a small integer between 0 and N-1. That sounds
 useless. It is not.
 
 By choosing the area size at registration time, you choose N, which chooses
@@ -37,9 +35,9 @@ The region is divided into 4KB slots. Each slot has a corresponding `net_iov`
 struct that tracks its state. The kernel maintains two things to manage which
 slots are free:
 
-- `freelist[]` — a stack of available slot indices, allocated as
+- `freelist[]`: a stack of available slot indices, allocated as
   `kcalloc(num_niovs, sizeof(u32))`
-- `free_count` — the stack depth, also used as the write index for the next push
+- `free_count`: the stack depth, also used as the write index for the next push
 
 When a slot comes back from the network layer, this runs:
 
@@ -56,7 +54,7 @@ static void io_zcrx_return_niov_freelist(struct net_iov *niov)
 
 No bounds check. `free_count` is incremented before the write, and the write
 uses the pre-increment value as the index. When `free_count == num_niovs` at
-entry, the write goes to `freelist[num_niovs]` — one slot past the end.
+entry, the write goes to `freelist[num_niovs]`, one slot past the end.
 
 ---
 
@@ -101,15 +99,15 @@ present in the area. `io_pp_zc_destroy` sees their `pp_ref_count` has been
 cleared by path A (that happens in `io_pp_zc_release_netmem` before the push),
 so it skips them. Fine.
 
-But niovs that are in-flight — received by the NIC but not yet drained from
-the socket by userspace — have a non-zero `pp_ref_count`. Path A has not run
+But niovs that are in-flight (received by the NIC but not yet drained from
+the socket by userspace) have a non-zero `pp_ref_count`. Path A has not run
 for them. Path B runs for them, incrementing `free_count`.
 
 The double-count happens for niovs that were returned to `ptr_ring` by path A
 but not yet pulled from the ring before `page_pool_destroy` drains it. Those
 niovs get counted once during the ptr_ring drain and once again in the scrub
 loop if their state was not fully updated. The implementation detail here is
-that `ptr_ring` drain and scrub are not atomic — there is a window.
+that `ptr_ring` drain and scrub are not atomic. There is a window.
 
 ```
 ptr_ring drain (path A):          scrub loop (path B):
@@ -124,7 +122,7 @@ ptr_ring drain (path A):          scrub loop (path B):
 
 Closing the io_uring ring file descriptor does **not** trigger this. The ring
 close path calls `io_zcrx_free_area` which does a straight `kvfree` on the
-freelist — no push, no increment, no OOB.
+freelist. There is no push, increment, or OOB write on that path.
 
 The page pool is only created on a real ZCRX-capable NIC (mlx5 ConnectX-6+,
 Intel E800, NFP). Test modules like `zcrx_vnic` bypass the page pool entirely.
@@ -164,7 +162,7 @@ The OOB write is:
 freelist[num_niovs] = net_iov_idx(niov)
 ```
 
-`net_iov_idx` returns the niov's index within its area — an integer in
+`net_iov_idx` returns the niov's index within its area, an integer in
 `[0, num_niovs - 1]`. The write is 4 bytes (u32). Its location is
 `freelist + num_niovs * 4`, which is the first 4 bytes of whatever slab object
 is allocated immediately after `freelist` in the same slab.
@@ -201,21 +199,21 @@ in 0–31, creates a useful state change.
 The target is `struct msg_msg`.
 
 `msgsnd()` allocates a `msg_msg` whose size is `sizeof(struct msg_msg_hdr) +
-text_len`. For text_len = 80, the total is 128 bytes — exactly filling
+text_len`. For text_len = 80, the total is 128 bytes, exactly filling
 kmalloc-128. The first field of `msg_msg` is `m_list`, a `list_head`:
 
 ```c
 struct msg_msg {
     struct list_head m_list;   /* 16 bytes at offset 0 */
     long m_type;               /* offset 16 */
-    size_t m_ts;               /* offset 24 — message text size */
+    size_t m_ts;               /* offset 24, message text size */
     struct msg_msgseg *next;   /* offset 32 */
     void *security;            /* offset 40 */
     /* text data starts at offset 48 */
 };
 ```
 
-The OOB write hits offset 0 of the adjacent `msg_msg` — the lower 4 bytes of
+The OOB write hits offset 0 of the adjacent `msg_msg`, the lower 4 bytes of
 `m_list.next`.
 
 Writing a small value (say `7`) to the low 32 bits of `m_list.next` corrupts
@@ -254,7 +252,7 @@ The sequence:
    freelist[32] = niov_idx writes to msg_msg.m_list.next[0:4].
 
 5. Read the corrupted msg_msg via msgrcv() with a large enough buffer.
-   The kernel copies from m_ts bytes of "message text" — but if we have
+   The kernel copies from m_ts bytes of "message text", but if we have
    inflated m_ts (step 6), that read goes past the 80-byte payload into
    adjacent memory.
 ```
@@ -329,7 +327,7 @@ Alternatively, and more reliably, we use a second IFQ registration with a
 different `num_niovs` to target a different slab cache that holds an object
 with a direct pointer write to an arbitrary kernel address. The io_uring
 `IORING_OP_READ_FIXED` / `IORING_OP_WRITE_FIXED` paths use `struct iovec`
-from registered buffers — a registered buffer's `iov_base` can be corrupted
+from registered buffers. A registered buffer's `iov_base` can be corrupted
 from `kmalloc-64` to point at `modprobe_path`, and then a write operation
 delivers our payload there.
 
@@ -453,7 +451,7 @@ root:$6$...
 
 ---
 
-## The disassembly — proving there is no guard
+## The disassembly
 
 `6.19.11-1kali1`, built April 9 2026. No `770594e`.
 
@@ -468,7 +466,7 @@ io_zcrx_return_niov_freelist:
                                                        ;     OOB when rax = N
 ```
 
-No comparison, no branch, no guard. The increment and write are unconditional.
+The increment and write are unconditional. No bounds comparison anywhere.
 
 After `770594e`:
 
@@ -495,11 +493,11 @@ kernel just drops the second push now instead of writing past the array.
 | Requirement | Detail |
 |-------------|--------|
 | Kernel | 6.15 – 6.19 without commit `770594e` |
-| Config | `CONFIG_IO_URING_ZCRX=y` — not in most distro kernels yet |
+| Config | `CONFIG_IO_URING_ZCRX=y` (not in most distro kernels yet) |
 | Hardware | Real ZCRX NIC: Mellanox ConnectX-6+, Intel E800 series, Netronome NFP, Broadcom BCM5750x, Google GVE |
 | Privilege | `CAP_NET_ADMIN` for `IORING_REGISTER_ZCRX_IFQ` and `SIOCSIFFLAGS` |
 | KASLR | Bypassed via heap leak; no dependency on `kptr_restrict=0` |
-| SMEP/SMAP | Not relevant — no userspace code execution in kernel context |
+| SMEP/SMAP | Not relevant; no userspace code execution in kernel context |
 | KASAN | Not enabled on most production kernels; if enabled, bug is caught before the write lands |
 
 The `CAP_NET_ADMIN` requirement scopes this to: container environments
