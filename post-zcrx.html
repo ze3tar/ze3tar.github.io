@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>QuickJS - Heap-UAF in Atomics via ResizableArrayBuffer · ze3ter</title>
+<title>You gave me a u32. I gave you root. (io_uring ZCRX freelist LPE) · ze3ter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,400&display=swap" rel="stylesheet"/>
@@ -19,19 +19,17 @@ document.documentElement.setAttribute('data-theme', TWEAK_DEFAULTS.theme);
 document.documentElement.setAttribute('data-density', TWEAK_DEFAULTS.density);
 
 window.POST_META = {
-  id: '03',
-  title: 'QuickJS - Heap-UAF in Atomics via ResizableArrayBuffer',
-  sub: 'All 8 Atomics ops share a stale-pointer bug. valueOf() resizes the RAB, realloc moves it, write lands on freed memory.',
-  target: 'bellard/quickjs master d7ae12a',
-  date: '2026-04-25',
+  id: '04',
+  title: 'You gave me a u32. I gave you root. (io_uring ZCRX freelist LPE)',
+  sub: 'OOB heap write in io_uring zero-copy receive — from a small integer past a freelist to uid=0.',
+  target: 'Linux 6.15 – 6.19 pre-770594e · CONFIG_IO_URING_ZCRX=y',
+  date: '2026-05-06',
   state: 'disclosed',
   stateLabel: 'disclosed',
-  mdFile: 'posts/quickjs-atomics-uaf.md',
-  tags: ['quickjs', 'use-after-free', 'cve'],
-  cwe: 'CWE-416: Use After Free',
-  cvss: '7.8 High',
-  prev: { href: 'post-sublime.html', title: 'Sublime Text internals' },
-  next: { href: 'post-zcrx.html', title: 'io_uring ZCRX freelist LPE' },
+  mdFile: 'posts/zcrx-freelist-oob.md',
+  tags: ['linux', 'kernel', 'io_uring', 'lpe', 'heap'],
+  prev: { href: 'post-quickjs.html', title: 'QuickJS - Heap-UAF in Atomics' },
+  next: null,
 };
 </script>
 </head>

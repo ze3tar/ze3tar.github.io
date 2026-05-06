@@ -2,6 +2,17 @@
 
 const POSTS = [
   {
+    id: '04',
+    title: 'You gave me a u32. I gave you root. (io_uring ZCRX freelist LPE)',
+    sub: 'OOB heap write in io_uring zero-copy receive — from a small integer past a freelist to uid=0.',
+    target: 'Linux 6.15 – 6.19 · io_uring ZCRX',
+    date: '2026-05-06',
+    state: 'disclosed',
+    stateLabel: 'disclosed',
+    href: 'post-zcrx.html',
+    tags: ['linux', 'kernel', 'lpe', 'heap'],
+  },
+  {
     id: '03',
     title: 'QuickJS - Heap-UAF in Atomics via ResizableArrayBuffer',
     sub: 'All 8 Atomics ops share a stale-pointer bug. valueOf() resizes the RAB, realloc moves it, write lands on freed memory.',
@@ -69,7 +80,7 @@ function Hero() {
 
 function Digging() {
   // uptime counter from an arbitrary recent instant - purely visual "I'm currently on this"
-  const start = React.useMemo(() => new Date('2026-04-25T12:00:00Z').getTime(), []);
+  const start = React.useMemo(() => new Date('2026-05-06T00:00:00Z').getTime(), []);
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -91,22 +102,22 @@ function Digging() {
       </div>
       <div className="digging-row">
         <span className="k">target</span>
-        <span className="v">bellard/quickjs · Atomics UAF via ResizableArrayBuffer</span>
+        <span className="v">Linux 6.15–6.19 · io_uring ZCRX freelist OOB → LPE</span>
         <span className="t">CVE pending</span>
       </div>
       <div className="digging-row">
         <span className="k">status</span>
-        <span className="v">Reported privately. <span className="accent">8 ops affected</span>. ASan-confirmed. quickjs-ng already patched.</span>
+        <span className="v">Reported to kernel security + io_uring maintainer. Fix in mainline (<span className="accent">770594e</span>), not yet in stable. PoC published.</span>
         <span className="t">disclosed</span>
       </div>
       <div className="digging-row">
         <span className="k">next</span>
         <span className="v">
-          Waiting on CVE assignment. Then: <span className="accent">Linux kernel io_uring</span> - same TOCTOU class, different surface.
+          Waiting on stable backport + CVE assignment. <span className="accent">Stable kernels still vulnerable</span> if CONFIG_IO_URING_ZCRX=y.
         </span>
         <span className="t">-</span>
       </div>
-      <div className="digging-progress"><span style={{width: '80%'}}/></div>
+      <div className="digging-progress"><span style={{width: '60%'}}/></div>
     </div>
   );
 }
