@@ -3,14 +3,14 @@
 const POSTS = [
   {
     id: '04',
-    title: 'You gave me a u32. I gave you root. (io_uring ZCRX freelist LPE)',
-    sub: 'OOB heap write in io_uring zero-copy receive — from a small integer past a freelist to uid=0.',
+    title: 'io_uring ZCRX freelist OOB write — container escape via CAP_NET_ADMIN',
+    sub: 'OOB heap write in io_uring zero-copy receive. 4 bytes past the freelist, call_usermodehelper in host init namespace.',
     target: 'Linux 6.15 – 6.19 · io_uring ZCRX',
     date: '2026-05-06',
     state: 'disclosed',
     stateLabel: 'disclosed',
     href: 'post-zcrx.html',
-    tags: ['linux', 'kernel', 'lpe', 'heap'],
+    tags: ['linux', 'kernel', 'container-escape', 'heap'],
   },
   {
     id: '03',
@@ -102,12 +102,12 @@ function Digging() {
       </div>
       <div className="digging-row">
         <span className="k">target</span>
-        <span className="v">Linux 6.15–6.19 · io_uring ZCRX freelist OOB → LPE</span>
+        <span className="v">Linux 6.15–6.19 · io_uring ZCRX freelist OOB → container escape</span>
         <span className="t">CVE pending</span>
       </div>
       <div className="digging-row">
         <span className="k">status</span>
-        <span className="v">Reported to kernel security + io_uring maintainer. Fix in mainline (<span className="accent">770594e</span>), not yet in stable. PoC published.</span>
+        <span className="v">Reported to kernel security + io_uring maintainer. Race fix (<span className="accent">003049b1c4fb</span>) in stable. Write-site guard (<span className="accent">770594e</span>) not yet backported to all stable branches. PoC published.</span>
         <span className="t">disclosed</span>
       </div>
       <div className="digging-row">
