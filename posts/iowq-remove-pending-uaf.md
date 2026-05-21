@@ -241,17 +241,17 @@ The dmesg side of the leak is a configuration question. The defaults on Debian a
 
 ---
 
-## Files
+## PoCs
 
-* `iowq_uaf.c`, minimal trigger with the brute-force bucket-0 search.
-* `iowq_crash_poc.c`, variant that uses bpftrace to identify the bucket-0 inode directly.
-* `iowq_leak_extract.c`, dmesg parser, prints the four KASLR bases.
-* `iowq_lpe_chain.c`, merged trigger + parser, single binary.
+* [`iowq_uaf.c`](https://github.com/ze3tar/ze3tar.github.io/blob/main/PoCs/iowq_uaf.c): trigger. Brute-forces tmpfiles until one hashes to bucket 0, fires NW + W0 + CANCEL + probe write, reports the file on which the probe write got stuck in the corrupted list.
+* [`iowq_leak_extract.c`](https://github.com/ze3tar/ze3tar.github.io/blob/main/PoCs/iowq_leak_extract.c): dmesg parser. Pulls text symbol + offset, heap linear-map base, vmemmap base, and any SLUB freelist hardened values out of the oops dump.
 
 ```bash
 gcc -O2 -o iowq_uaf iowq_uaf.c
 gcc -O2 -o iowq_leak_extract iowq_leak_extract.c
-gcc -O2 -o iowq_lpe_chain iowq_lpe_chain.c
+
+./iowq_uaf            # fires the bug, exit 0 on hit
+./iowq_leak_extract   # reads dmesg, prints derived bases
 ```
 
 ---
