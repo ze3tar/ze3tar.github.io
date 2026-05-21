@@ -1,6 +1,6 @@
 /*
  * iowq_uaf.c
- * io_wq_remove_pending UAF — Linux 6.19.11, fixed in 7.1-rc4 (d6a2d7b04b5a).
+ * io_wq_remove_pending UAF. Linux 6.19.11, fixed in 7.1-rc4 (d6a2d7b04b5a).
  *
  * NW (NOP+IOSQE_ASYNC) + W0 (WRITE, hashed bucket 0) + CANCEL(W0). Cancel
  * walks back to non-hashed NW, matches `flags >> 24 == 0` against W0's
