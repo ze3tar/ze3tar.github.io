@@ -2,6 +2,17 @@
 
 const POSTS = [
   {
+    id: '05',
+    title: 'io_wq remove_pending UAF and dmesg-side KASLR leak',
+    sub: 'Missing is_hashed check on the predecessor work plants a dangling pointer in hash_tail[0]. 8 byte write into a freed io_kiocb on the next bucket-0 enqueue.',
+    target: 'Linux 6.19.11-1kali1 · io_uring io-wq',
+    date: '2026-05-21',
+    state: 'learning',
+    stateLabel: 'learning :)',
+    href: 'post-iowq.html',
+    tags: ['linux', 'kernel', 'io_uring', 'uaf', 'kaslr'],
+  },
+  {
     id: '04',
     title: 'io_uring ZCRX freelist OOB write — container escape via CAP_NET_ADMIN',
     sub: 'OOB heap write in io_uring zero-copy receive. 4 bytes past the freelist, call_usermodehelper in host init namespace.',
