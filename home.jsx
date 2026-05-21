@@ -91,7 +91,7 @@ function Hero() {
 
 function Digging() {
   // uptime counter from an arbitrary recent instant - purely visual "I'm currently on this"
-  const start = React.useMemo(() => new Date('2026-05-06T00:00:00Z').getTime(), []);
+  const start = React.useMemo(() => new Date('2026-05-21T00:00:00Z').getTime(), []);
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -113,22 +113,22 @@ function Digging() {
       </div>
       <div className="digging-row">
         <span className="k">target</span>
-        <span className="v">Linux 6.15–6.19 · io_uring ZCRX freelist OOB → container escape</span>
-        <span className="t">CVE pending</span>
+        <span className="v">Linux 6.19.11 · io_wq_remove_pending UAF + dmesg-side KASLR leak</span>
+        <span className="t">no CVE</span>
       </div>
       <div className="digging-row">
         <span className="k">status</span>
-        <span className="v">Reported to kernel security + io_uring maintainer. Race fix (<span className="accent">003049b1c4fb</span>) in stable. Write-site guard (<span className="accent">770594e</span>) not yet backported to all stable branches. PoC published.</span>
-        <span className="t">disclosed</span>
+        <span className="v">Upstream fix (<span className="accent">d6a2d7b04b5a</span>) landed in 7.1-rc4. 6.19.x in Kali rolling still vulnerable at the time of writing. Trigger and dmesg leak parser published.</span>
+        <span className="t">learning</span>
       </div>
       <div className="digging-row">
         <span className="k">next</span>
         <span className="v">
-          Waiting on stable backport + CVE assignment. <span className="accent">Stable kernels still vulnerable</span> if CONFIG_IO_URING_ZCRX=y.
+          Looking for a second-stage primitive that turns the 0xD8 write into an arbitrary-where write. <span className="accent">req-&gt;link / req-&gt;creds</span> via list-corruption is the direction.
         </span>
         <span className="t">-</span>
       </div>
-      <div className="digging-progress"><span style={{width: '60%'}}/></div>
+      <div className="digging-progress"><span style={{width: '40%'}}/></div>
     </div>
   );
 }
