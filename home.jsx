@@ -2,6 +2,17 @@
 
 const POSTS = [
   {
+    id: '06',
+    title: 'decode() Said Yes: Two CVEs Hidden Between JWT Components',
+    sub: 'I found two PyJWT CVEs by following identity across the verifier, key importer and application. This is the method I used.',
+    target: 'PyJWT · JWT / JOSE composition boundaries',
+    date: '2026-10-05',
+    state: 'disclosed',
+    stateLabel: 'research',
+    href: 'post-jwt-composition.html',
+    tags: ['jwt', 'jose', 'pyjwt', 'cve', 'methodology'],
+  },
+  {
     id: '05',
     title: 'io_wq remove_pending UAF and dmesg-side KASLR leak',
     sub: 'Missing is_hashed check on the predecessor work plants a dangling pointer in hash_tail[0]. 8 byte write into a freed io_kiocb on the next bucket-0 enqueue.',
@@ -70,12 +81,12 @@ function Hero() {
           Mohamed Salem Eddah<span className="cursor"/>
         </h1>
         <p className="hero-sub">
-          Security researcher. Always trying to go deeper, trying to develop my skills on building
-          <em> proof-of-concept exploit chains</em>. I focus on analyzing attack surfaces and researching
-          vulnerabilities in web applications, native software, and system-level components.
+          I research the gaps between what software checks and what the rest of the system assumes.
+          My work crosses web authentication, native runtimes, and Linux internals, with a focus on
+          turning weird behavior into <em>reproducible proof-of-concept exploit chains</em>.
         </p>
         <p className="hero-sub" style={{marginTop: 14, color: 'var(--ink-dim)'}}>
-          Trying to learn a new thing everyday.
+          Trying to learn a new thing every day.
         </p>
         <div className="hero-meta">
           <a href="https://x.com/ze3ter_">x / @ze3ter_</a>
@@ -91,7 +102,7 @@ function Hero() {
 
 function Digging() {
   // uptime counter from an arbitrary recent instant - purely visual "I'm currently on this"
-  const start = React.useMemo(() => new Date('2026-05-21T00:00:00Z').getTime(), []);
+  const start = React.useMemo(() => new Date('2026-10-05T00:00:00Z').getTime(), []);
   const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -107,28 +118,28 @@ function Digging() {
   return (
     <div className="digging">
       <div className="digging-head">
-        <span className="title">▸ currently_disclosing</span>
+        <span className="title">▸ current_research</span>
         <span>session uptime {uptime}</span>
         <div className="dots"><span/><span/><span/></div>
       </div>
       <div className="digging-row">
         <span className="k">target</span>
-        <span className="v">Linux 6.19.11 · io_wq_remove_pending UAF + dmesg-side KASLR leak</span>
-        <span className="t">no CVE</span>
+        <span className="v">JWT / JOSE composition boundaries across verification, key import, application state, and resource selection</span>
+        <span className="t">research</span>
       </div>
       <div className="digging-row">
         <span className="k">status</span>
-        <span className="v">Upstream fix (<span className="accent">d6a2d7b04b5a</span>) landed in 7.1-rc4. 6.19.x in Kali rolling still vulnerable at the time of writing. Trigger and dmesg leak parser published.</span>
-        <span className="t">learning</span>
+        <span className="v">The method has produced <span className="accent">CVE-2026-102269</span> and <span className="accent">CVE-2026-102275</span> in PyJWT. Both advisories and fixes are public.</span>
+        <span className="t">2 CVEs</span>
       </div>
       <div className="digging-row">
-        <span className="k">next</span>
+        <span className="k">write-up</span>
         <span className="v">
-          Looking for a second-stage primitive that turns the 0xD8 write into an arbitrary-where write. <span className="accent">req-&gt;link / req-&gt;creds</span> via list-corruption is the direction.
+          <a href="post-jwt-composition.html">How following identity between components turned parser differences into reproducible security findings →</a>
         </span>
-        <span className="t">-</span>
+        <span className="t">read</span>
       </div>
-      <div className="digging-progress"><span style={{width: '40%'}}/></div>
+      <div className="digging-progress"><span style={{width: '78%'}}/></div>
     </div>
   );
 }
@@ -228,15 +239,15 @@ function HomePage() {
           <SectionLabel num="02">about</SectionLabel>
           <div>
             <p style={{fontSize: 15, lineHeight: 1.7, color: 'var(--ink)', maxWidth: '64ch', marginBottom: 20}}>
-              I work across offensive security and software engineering, focusing on vulnerability analysis,
-              adversarial reasoning, and system-level investigation.
+              I do vulnerability research across web authentication, native software, and Linux internals.
             </p>
             <p style={{fontSize: 15, lineHeight: 1.7, color: 'var(--ink-dim)', maxWidth: '64ch', marginBottom: 20}}>
-              My work centers on understanding how software and systems behave under stress, how weaknesses emerge
-              in real environments, and how they can be systematically identified and analyzed.
+              I like bugs that appear between components: one parser accepts what another interprets differently,
+              an identity changes at a boundary, or a small primitive becomes useful when it reaches real state.
             </p>
             <p style={{fontSize: 15, lineHeight: 1.7, color: 'var(--ink-dim)', maxWidth: '64ch'}}>
-              My approach is methodical, engineering-driven, and grounded in practical system understanding.
+              I document the path from observation to impact with small reproductions, paired controls, and enough
+              evidence for someone else to verify it.
             </p>
           </div>
         </section>

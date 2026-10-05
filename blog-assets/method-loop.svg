@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">Composition vulnerability research loop</title>
+  <desc id="desc">Seven stages: map the path, enumerate identities, write an invariant, mutate one boundary, capture the trace, add a paired control, and attribute the failure.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#7f8ea3"/></marker>
+    <style>.bg{fill:#0b0f14}.box{fill:#151b23;stroke:#39475a;stroke-width:2}.accent{fill:#251520;stroke:#ff2d6f;stroke-width:2}.n{fill:#ff2d6f;font-family:monospace;font-size:18px;font-weight:700}.t{fill:#e8edf3;font-family:monospace;font-size:17px;font-weight:600}.s{fill:#9aa8ba;font-family:monospace;font-size:13px}.edge{stroke:#7f8ea3;stroke-width:2;fill:none;marker-end:url(#arrow)}</style>
+  </defs>
+  <rect class="bg" width="1200" height="620" rx="18"/>
+  <text class="t" x="50" y="48">The experiment starts with the boundary, not the payload</text>
+
+  <rect class="box" x="60" y="100" width="260" height="100" rx="12"/><text class="n" x="82" y="132">01</text><text class="t" x="130" y="132">Map the path</text><text class="s" x="82" y="164">bytes → key → claims → action</text>
+  <rect class="box" x="470" y="100" width="260" height="100" rx="12"/><text class="n" x="492" y="132">02</text><text class="t" x="540" y="132">Name identities</text><text class="s" x="492" y="164">wire, key, claim, state</text>
+  <rect class="accent" x="880" y="100" width="260" height="100" rx="12"/><text class="n" x="902" y="132">03</text><text class="t" x="950" y="132">Write invariant</text><text class="s" x="902" y="164">A must equal / precede B</text>
+
+  <rect class="accent" x="880" y="290" width="260" height="100" rx="12"/><text class="n" x="902" y="322">04</text><text class="t" x="950" y="322">Mutate one edge</text><text class="s" x="902" y="354">representation / origin / type</text>
+  <rect class="box" x="470" y="290" width="260" height="100" rx="12"/><text class="n" x="492" y="322">05</text><text class="t" x="540" y="322">Capture trace</text><text class="s" x="492" y="354">observe identities downstream</text>
+  <rect class="box" x="60" y="290" width="260" height="100" rx="12"/><text class="n" x="82" y="322">06</text><text class="t" x="130" y="322">Paired control</text><text class="s" x="82" y="354">enforce invariant; rerun</text>
+
+  <rect class="accent" x="470" y="480" width="260" height="100" rx="12"/><text class="n" x="492" y="512">07</text><text class="t" x="540" y="512">Attribute failure</text><text class="s" x="492" y="544">library / composition / app</text>
+
+  <path class="edge" d="M320 150 H465"/><path class="edge" d="M730 150 H875"/><path class="edge" d="M1010 200 V285"/><path class="edge" d="M880 340 H735"/><path class="edge" d="M470 340 H325"/><path class="edge" d="M190 390 V530 H465"/>
+</svg>

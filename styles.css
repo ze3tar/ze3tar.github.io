@@ -1240,6 +1240,15 @@ a.bare:hover { color: var(--accent); }
 .post-md-body a { color: var(--accent); text-underline-offset: 3px; }
 .post-md-body strong { color: var(--ink); font-weight: 600; }
 .post-md-body em { font-style: italic; color: var(--ink-dim); }
+.post-md-body img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 24px 0;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+}
 .post-md-body ul, .post-md-body ol { padding-left: 24px; margin: 0 0 16px; }
 .post-md-body li { margin-bottom: 6px; color: var(--ink-dim); }
 .post-md-body hr { border: none; border-top: 1px solid var(--rule); margin: 32px 0; }

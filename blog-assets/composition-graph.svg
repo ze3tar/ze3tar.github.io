@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">JWT composition security graph</title>
+  <desc id="desc">A request moves through transport, parsing, key resolution, verification, claim conversion, policy, and state or resource selection. Security-relevant boundaries connect each stage.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#7f8ea3"/></marker>
+    <style>
+      .bg{fill:#0b0f14}.node{fill:#151b23;stroke:#39475a;stroke-width:2}.hot{fill:#251520;stroke:#ff2d6f;stroke-width:2}.t{fill:#e8edf3;font-family:monospace;font-size:18px;font-weight:600}.s{fill:#9aa8ba;font-family:monospace;font-size:14px}.edge{stroke:#7f8ea3;stroke-width:2;fill:none;marker-end:url(#arrow)}.label{fill:#ff8ab0;font-family:monospace;font-size:13px}.dot{fill:#ff2d6f}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="520" rx="18"/>
+  <text x="50" y="48" class="t">The verifier is one node, not the whole security boundary</text>
+
+  <rect class="node" x="45" y="105" width="140" height="78" rx="10"/><text class="t" x="72" y="137">Request</text><text class="s" x="66" y="163">raw bytes</text>
+  <rect class="node" x="235" y="105" width="140" height="78" rx="10"/><text class="t" x="271" y="137">Parser</text><text class="s" x="256" y="163">JSON / b64</text>
+  <rect class="node" x="425" y="105" width="160" height="78" rx="10"/><text class="t" x="448" y="137">Key resolver</text><text class="s" x="447" y="163">HTTP + cache</text>
+  <rect class="hot" x="635" y="105" width="140" height="78" rx="10"/><text class="t" x="660" y="137">Verifier</text><text class="s" x="665" y="163">signature</text>
+  <rect class="node" x="825" y="105" width="140" height="78" rx="10"/><text class="t" x="846" y="137">Claims</text><text class="s" x="842" y="163">runtime types</text>
+  <rect class="node" x="1015" y="105" width="140" height="78" rx="10"/><text class="t" x="1047" y="137">Policy</text><text class="s" x="1038" y="163">allow / deny</text>
+
+  <path class="edge" d="M185 144 H230"/><circle class="dot" cx="210" cy="144" r="5"/><text class="label" x="174" y="92">representation</text>
+  <path class="edge" d="M375 144 H420"/><circle class="dot" cx="400" cy="144" r="5"/><text class="label" x="365" y="211">provenance</text>
+  <path class="edge" d="M585 144 H630"/><circle class="dot" cx="610" cy="144" r="5"/><text class="label" x="577" y="92">key identity</text>
+  <path class="edge" d="M775 144 H820"/><circle class="dot" cx="800" cy="144" r="5"/><text class="label" x="775" y="211">typing</text>
+  <path class="edge" d="M965 144 H1010"/><circle class="dot" cx="990" cy="144" r="5"/><text class="label" x="957" y="92">meaning</text>
+
+  <rect class="node" x="640" y="310" width="220" height="90" rx="10"/><text class="t" x="677" y="344">Security state</text><text class="s" x="665" y="371">revocation / replay</text>
+  <rect class="node" x="925" y="310" width="230" height="90" rx="10"/><text class="t" x="956" y="344">Resource lookup</text><text class="s" x="949" y="371">tenant / account</text>
+  <path class="edge" d="M1085 183 V260 H1040 V305"/><circle class="dot" cx="1040" cy="274" r="5"/><text class="label" x="1135" y="278" text-anchor="end">authorization identity</text>
+  <path class="edge" d="M705 183 V305"/><circle class="dot" cx="705" cy="260" r="5"/><text class="label" x="720" y="265">token identity</text>
+
+  <text class="s" x="50" y="464">The red dots are the hunting surface: an identity, origin, type, or ordering decision crosses a component boundary.</text>
+  <text class="s" x="50" y="492">A locally correct node can still consume a value with the wrong meaning.</text>
+</svg>

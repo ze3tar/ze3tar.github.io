@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="900" viewBox="0 0 1300 900" role="img" aria-labelledby="title desc">
+  <title id="title">Evidence promotion decision graph</title>
+  <desc id="desc">A controlled mutation advances through an invariant violation, security consequence, paired control and pinned reproduction. Weak candidates exit as differentials, hardening observations or unsupported hypotheses. Reproduced findings are classified by ownership.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#7f8ea3"/>
+    </marker>
+    <marker id="arrow-muted" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#647286"/>
+    </marker>
+    <style>
+      .bg{fill:#0b0f14}
+      .box{fill:#151b23;stroke:#39475a;stroke-width:2}
+      .hot{fill:#251520;stroke:#ff2d6f;stroke-width:2}
+      .exit{fill:#10161e;stroke:#647286;stroke-width:2;stroke-dasharray:7 6}
+      .result{fill:#151b23;stroke:#ff2d6f;stroke-width:2}
+      .title{fill:#e8edf3;font-family:monospace;font-size:19px;font-weight:700}
+      .n{fill:#ff2d6f;font-family:monospace;font-size:16px;font-weight:700}
+      .t{fill:#e8edf3;font-family:monospace;font-size:15px;font-weight:700}
+      .s{fill:#9aa8ba;font-family:monospace;font-size:12px}
+      .label{fill:#9aa8ba;font-family:monospace;font-size:11px;font-weight:600}
+      .edge{stroke:#7f8ea3;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .branch{stroke:#647286;stroke-width:2;stroke-dasharray:7 6;fill:none;marker-end:url(#arrow-muted)}
+    </style>
+  </defs>
+
+  <rect class="bg" width="1300" height="900" rx="18"/>
+  <text class="title" x="45" y="48">A finding is promoted by evidence, then classified by ownership</text>
+  <text class="s" x="45" y="73">The main path is cumulative. Dashed paths are deliberate stopping points.</text>
+
+  <rect class="box" x="35" y="115" width="180" height="110" rx="11"/>
+  <text class="n" x="53" y="143">01</text>
+  <text class="t" x="53" y="172">Baseline</text>
+  <text class="s" x="53" y="197">Normal path behaves</text>
+  <text class="s" x="53" y="214">as expected</text>
+
+  <rect class="box" x="245" y="115" width="180" height="110" rx="11"/>
+  <text class="n" x="263" y="143">02</text>
+  <text class="t" x="263" y="172">One mutation</text>
+  <text class="s" x="263" y="197">Change one edge or</text>
+  <text class="s" x="263" y="214">state transition</text>
+
+  <rect class="hot" x="455" y="115" width="180" height="110" rx="11"/>
+  <text class="n" x="473" y="143">03</text>
+  <text class="t" x="473" y="172">Invariant fails</text>
+  <text class="s" x="473" y="197">Identity, origin or</text>
+  <text class="s" x="473" y="214">ordering diverges</text>
+
+  <rect class="hot" x="665" y="115" width="180" height="110" rx="11"/>
+  <text class="n" x="683" y="143">04</text>
+  <text class="t" x="683" y="172">Consequence</text>
+  <text class="s" x="683" y="197">Authz, state, trust</text>
+  <text class="s" x="683" y="214">or availability fails</text>
+
+  <rect class="hot" x="875" y="115" width="180" height="110" rx="11"/>
+  <text class="n" x="893" y="143">05</text>
+  <text class="t" x="893" y="172">Paired control</text>
+  <text class="s" x="893" y="197">One invariant check</text>
+  <text class="s" x="893" y="214">blocks the mutation</text>
+
+  <rect class="box" x="1085" y="115" width="180" height="110" rx="11"/>
+  <text class="n" x="1103" y="143">06</text>
+  <text class="t" x="1103" y="172">Reproduction</text>
+  <text class="s" x="1103" y="197">Pinned release, trace</text>
+  <text class="s" x="1103" y="214">and preconditions</text>
+
+  <path class="edge" d="M215 170 H240"/>
+  <path class="edge" d="M425 170 H450"/>
+  <path class="edge" d="M635 170 H660"/>
+  <path class="edge" d="M845 170 H870"/>
+  <path class="edge" d="M1055 170 H1080"/>
+
+  <path class="branch" d="M545 225 V292 H195 V330"/>
+  <text class="label" x="474" y="257">no invariant violation</text>
+  <rect class="exit" x="55" y="330" width="280" height="92" rx="11"/>
+  <text class="t" x="77" y="362">Behavioral differential</text>
+  <text class="s" x="77" y="387">Record it; do not promote it</text>
+  <text class="s" x="77" y="404">as a vulnerability.</text>
+
+  <path class="branch" d="M755 225 V330"/>
+  <text class="label" x="768" y="277">no security consequence</text>
+  <rect class="exit" x="615" y="330" width="280" height="92" rx="11"/>
+  <text class="t" x="637" y="362">Hardening / conformance</text>
+  <text class="s" x="637" y="387">The rule differs, but no owned</text>
+  <text class="s" x="637" y="404">security decision failed.</text>
+
+  <path class="branch" d="M965 225 V292 H1105 V330"/>
+  <text class="label" x="976" y="257">control does not isolate</text>
+  <rect class="exit" x="965" y="330" width="280" height="92" rx="11"/>
+  <text class="t" x="987" y="362">Unsupported hypothesis</text>
+  <text class="s" x="987" y="387">Refine the model or find a</text>
+  <text class="s" x="987" y="404">control before reporting.</text>
+
+  <path class="edge" d="M1175 225 V270 H1275 V478 H650 V510"/>
+  <rect class="hot" x="420" y="510" width="460" height="118" rx="12"/>
+  <text class="n" x="442" y="540">OWNERSHIP &amp; SCOPE</text>
+  <text class="t" x="442" y="570">Who promised or must enforce the invariant?</text>
+  <text class="s" x="442" y="595">State every exploitation precondition. Separate the</text>
+  <text class="s" x="442" y="613">generic defect from one illustrative composition.</text>
+
+  <path class="edge" d="M650 628 V676 H225 V715"/>
+  <path class="edge" d="M650 628 V715"/>
+  <path class="edge" d="M650 628 V676 H1075 V715"/>
+
+  <rect class="result" x="55" y="715" width="340" height="125" rx="11"/>
+  <text class="t" x="77" y="748">Library-owned defect</text>
+  <text class="s" x="77" y="775">Importer, parser or guard violates</text>
+  <text class="s" x="77" y="793">its protocol or API contract.</text>
+  <text class="s" x="77" y="818">Report to the library.</text>
+
+  <rect class="result" x="480" y="715" width="340" height="125" rx="11"/>
+  <text class="t" x="502" y="748">Composition vulnerability</text>
+  <text class="s" x="502" y="775">Documented components preserve</text>
+  <text class="s" x="502" y="793">different meanings across an edge.</text>
+  <text class="s" x="502" y="818">Report with the full profile.</text>
+
+  <rect class="result" x="905" y="715" width="340" height="125" rx="11"/>
+  <text class="t" x="927" y="748">Application / policy issue</text>
+  <text class="s" x="927" y="775">The application owns the missing</text>
+  <text class="s" x="927" y="793">check or violates documented use.</text>
+  <text class="s" x="927" y="818">Do not misattribute it.</text>
+</svg>

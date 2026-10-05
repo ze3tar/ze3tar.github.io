@@ -7,6 +7,7 @@ function ArchivePage() {
   const filters = [
     { k: 'all', label: 'all' },
     { k: 'cve', label: 'cve' },
+    { k: 'jwt', label: 'jwt' },
     { k: 'use-after-free', label: 'use-after-free' },
     { k: 'reversing', label: 'reversing' },
     { k: 'browser', label: 'browser' },
