@@ -26,7 +26,6 @@ function TopBar({ current }) {
           ))}
         </nav>
         <div className="topbar-meta">
-          {current !== 'home' && <span><span className="status-dot"/>online</span>}
           <span>{utc}</span>
         </div>
       </div>
