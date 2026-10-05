@@ -25,14 +25,14 @@ const POSTS = [
   },
   {
     id: '04',
-    title: 'io_uring ZCRX freelist OOB write — container escape via CAP_NET_ADMIN',
+    title: 'CVE-2026-43121: io_uring ZCRX freelist OOB write',
     sub: 'OOB heap write in io_uring zero-copy receive. 4 bytes past the freelist, call_usermodehelper in host init namespace.',
     target: 'Linux 6.15 – 6.19 · io_uring ZCRX',
     date: '2026-05-06',
     state: 'disclosed',
-    stateLabel: 'disclosed',
+    stateLabel: 'CVE-2026-43121',
     href: 'post-zcrx.html',
-    tags: ['linux', 'kernel', 'container-escape', 'heap'],
+    tags: ['linux', 'kernel', 'io_uring', 'cve', 'container-escape', 'heap'],
   },
   {
     id: '03',

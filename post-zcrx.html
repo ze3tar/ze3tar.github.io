@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Damned OOB · ze3ter</title>
+<title>Damned OOB | CVE-2026-43121 | ze3tar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,400&display=swap" rel="stylesheet"/>
@@ -20,14 +20,14 @@ document.documentElement.setAttribute('data-density', TWEAK_DEFAULTS.density);
 
 window.POST_META = {
   id: '04',
-  title: 'Damned OOB',
-  sub: 'OOB heap write in io_uring zero-copy receive — container escape via CAP_NET_ADMIN + call_usermodehelper',
+  title: 'Damned OOB: CVE-2026-43121',
+  sub: 'A user_refs race in io_uring zero-copy receive can double-return an niov and produce a four-byte kernel heap OOB write.',
   target: 'Linux 6.15 – 6.19 pre-770594e · CONFIG_IO_URING_ZCRX=y',
   date: '2026-05-06',
   state: 'disclosed',
-  stateLabel: 'disclosed',
-  mdFile: 'posts/zcrx-freelist-oob.md',
-  tags: ['linux', 'kernel', 'io_uring', 'container-escape', 'heap'],
+  stateLabel: 'CVE-2026-43121',
+  mdFile: 'posts/zcrx-freelist-oob.md?v=2',
+  tags: ['linux', 'kernel', 'io_uring', 'cve', 'container-escape', 'heap'],
   prev: { href: 'post-quickjs.html', title: 'QuickJS - Heap-UAF in Atomics' },
   next: { href: 'post-iowq.html', title: 'io_wq remove_pending UAF' },
 };

@@ -1,6 +1,6 @@
 ## TL;DR
 
-Linux 6.15 added ZCRX (zero-copy receive) to io_uring. The subsystem manages a stack of available slot indices in `freelist[]`. There is no upper-bound check when pushing to that stack. During NIC teardown, two independent paths both return the same niov to the freelist. `free_count` exceeds `num_niovs` and the next push goes to `freelist[num_niovs]`, four bytes past the allocation, into the adjacent slab object.
+[CVE-2026-43121](https://www.cve.org/CVERecord?id=CVE-2026-43121) tracks the `user_refs` race in io_uring ZCRX. Linux 6.15 added ZCRX (zero-copy receive) to io_uring. The subsystem manages a stack of available slot indices in `freelist[]`. There is no upper-bound check when pushing to that stack. During NIC teardown, two independent paths both return the same niov to the freelist. `free_count` exceeds `num_niovs` and the next push goes to `freelist[num_niovs]`, four bytes past the allocation, into the adjacent slab object.
 
 The write value is a niov index, so it's bounded by `num_niovs`. With `num_niovs=32` (freelist in kmalloc-128, value range 0-31) you can corrupt the first four bytes of whatever lives next to the freelist in that slab cache.
 
@@ -250,6 +250,11 @@ Code execution inside that pod on a node running 6.15-6.18 with a ZCRX NIC and `
 
 ## Fix status
 
+CVE-2026-43121 covers the non-atomic `user_refs` transition fixed by
+`003049b1c4fb`. The later `770594e` bounds check protects the freelist write
+site if that invariant is broken again, but it is defense in depth rather than
+the CVE's root-cause fix.
+
 | Commit | Date | Description |
 |--------|------|-------------|
 | `003049b1c4fb` | 2026-02-18 | Fixes the race in `io_zcrx_put_niov_uref` using `atomic_try_cmpxchg`. In stable. |
@@ -285,6 +290,13 @@ gcc -O2 -o zcrx_container_escape zcrx_container_escape.c
 ```
 
 On a patched kernel or without ZCRX hardware, the binary walks through every stage it can execute (KASLR resolution, spray setup, physmap target computation) and prints exactly where the chain would continue and why it stops.
+
+---
+
+## Further reading
+
+- [CVE-2026-43121 official record](https://www.cve.org/CVERecord?id=CVE-2026-43121)
+- [Penligent: io_uring ZCRX Freelist Race, Four Bytes Past the Edge](https://www.penligent.ai/hackinglabs/io_uring-zcrx-freelist-race-four-bytes-past-the-edge/)
 
 ---
 
